@@ -23,7 +23,6 @@ Scripts are designed to be:
 - Modular  
 - Reusable  
 - Explicit in permissions  
-- Safe by default where possible  
 - Enterprise-oriented  
 
 ---

@@ -25,11 +25,13 @@
 .NOTES
     Required Azure role (minimum): Reader
     Scope: the target resource or its Resource Group
-    Required permissions:
-      Microsoft.ResourceGraph/resources/read        (for resource lookup via Search-AzGraph)
-      Microsoft.Authorization/roleAssignments/read  (for listing assignments via Get-AzRoleAssignment)
+    Required Azure permissions:
+      Microsoft.ResourceGraph/resources/read        (resource lookup via Search-AzGraph)
+      Microsoft.Authorization/roleAssignments/read  (listing assignments via Get-AzRoleAssignment)
+    Required Microsoft Graph permission (when resolving by UPN):
+      User.Read.All                                 (principal lookup via Get-AzADUser)
     Prerequisites:
-      Az.ResourceGraph module  (Install-Module Az.ResourceGraph)
+      Az.ResourceGraph module  (run .\shared\Install-Prerequisites.ps1)
 #>
 
 [CmdletBinding()]
