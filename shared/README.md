@@ -112,4 +112,3 @@ Run once on a new machine or after a fresh PowerShell installation.
 | File | Description |
 |---|---|
 | `Connect-AzToolkit.template.json` | Config template for `Connect-AzToolkit.ps1`. |
-| `config.template.json` | Generic config template for scripts that only need a subscription context. |

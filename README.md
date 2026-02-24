@@ -85,7 +85,6 @@ not for single-tenant or project-specific implementations.
 | `Connect-AzToolkit.ps1` | Script | Connects to Azure with deterministic subscription context, config-file driven. |
 | `AzToolkit.Config.psm1` | Module | Shared config-loading and Azure context helpers – imported by all scripts. |
 | `Connect-AzToolkit.template.json` | Template | Config template for `Connect-AzToolkit.ps1`. |
-| `config.template.json` | Template | Generic config template for scripts that only need a subscription context. |
 
 **Exported module functions (`AzToolkit.Config.psm1`)**
 
