@@ -3,7 +3,7 @@
 Reusable PowerShell toolkit for enterprise Microsoft Cloud operations  
 (Azure, Entra ID, Microsoft 365).
 
-This repository contains reusable administrative and operational scripts  
+This repository contains reusable administrative and operational scripts 
 used in real-world Microsoft Cloud environments.  
 The focus is on practical automation, governance support, and operational consistency.
 
@@ -13,10 +13,10 @@ The focus is on practical automation, governance support, and operational consis
 
 The toolkit is structured by Microsoft Cloud domains:
 
-- **Azure** – VM operations, Update Manager, Arc, Policy, RBAC  
-- **Entra ID** – identity governance, roles, cross-tenant scenarios  
+- **Azure** – Infrastructure operations, RBAC, Policy, Arc, Update Manager  
+- **Entra ID** – Identity governance, role management, cross-tenant scenarios  
 - **Microsoft 365** – Exchange, Teams, SharePoint, compliance  
-- **Shared** – authentication helpers, bootstrap scripts, reusable utilities  
+- **Shared** – Reusable helpers and environment bootstrap scripts  
 
 Scripts are designed to be:
 
@@ -24,30 +24,54 @@ Scripts are designed to be:
 - Reusable  
 - Explicit in permissions  
 - Safe by default where possible  
+- Enterprise-oriented  
 
 ---
 
 ## Getting Started
 
-Ensure you have:
+Requirements:
 
-- PowerShell 7+  
+- PowerShell 7+
 - Required modules (Az, Microsoft.Graph, ExchangeOnlineManagement, etc.)
 
-You can use the bootstrap script:
+Install required modules:
 
 ```powershell
-./shared/bootstrap/Install-Prerequisites.ps1
+./shared/Install-Prerequisites.ps1
+```
+
+Authenticate explicitly as needed:
+
+```powershell
+Connect-AzAccount
+Connect-MgGraph
 ```
 
 ---
 
 ## Design Principles
 
-- Domain-oriented structure (not API-driven)  
-- Clear Verb-Noun naming convention  
-- No hidden side effects  
-- Enterprise-ready operational patterns  
+- Domain-oriented structure (not API-driven)
+- Clear Verb-Noun naming convention
+- No hidden side effects
+- Explicit authentication
+- Enterprise-ready operational patterns
+
+---
+
+## Repository Guidelines
+
+To ensure reusability and neutrality:
+
+- No hardcoded tenant IDs, subscription IDs or resource names
+- No environment-specific defaults
+- No embedded secrets or credentials
+- Scripts should be idempotent where feasible
+- Authentication must be explicit (no implicit auto-connect logic)
+
+This repository is designed for reusable enterprise scenarios,  
+not for single-tenant or project-specific implementations.
 
 ---
 

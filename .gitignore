@@ -1,0 +1,20 @@
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Output / Reports
+output/
+reports/
+*.xlsx
+*.csv
+
+# Local environment
+.env
+.env.*
+local.settings.json
+
+# OS files
+.DS_Store
+Thumbs.db
