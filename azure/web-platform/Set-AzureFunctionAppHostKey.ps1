@@ -17,6 +17,11 @@
 
 .EXAMPLE
     .\Set-AzureFunctionAppHostKey.ps1 -SubscriptionId '<guid>' -ResourceGroupName 'my-rg' -FunctionAppName 'my-func' -HostKeyName 'server'
+
+.NOTES
+    Required Azure role (minimum): Website Contributor
+    Scope: the target Function App or its Resource Group
+    Required permission: Microsoft.Web/sites/host/functionkeys/write
 #>
 
 [CmdletBinding()]
@@ -98,7 +103,7 @@ Write-Host ''
 if ($SubscriptionId) {
     Write-Host "Subscription:   $SubscriptionId" -ForegroundColor Cyan
 } else {
-    Write-Host 'Subscription:   (using current Azure CLI context)' -ForegroundColor Cyan
+    Write-Host 'Subscription:   (using current Azure context)' -ForegroundColor Cyan
 }
 Write-Host "Resource Group: $ResourceGroupName" -ForegroundColor Cyan
 Write-Host "Function App:   $FunctionAppName"   -ForegroundColor Cyan
@@ -191,10 +196,6 @@ try {
         Write-Host "SUCCESS: Host key '$HostKeyName' has been set!" -ForegroundColor Green
         Write-Host 'Note: No output received. Retrieve the key from the Azure Portal.' -ForegroundColor Yellow
     }
-
 } catch {
-    Write-Host 'ERROR: An unexpected error occurred!' -ForegroundColor Red
-    Write-Host "Error: $($_.Exception.Message)"       -ForegroundColor Red
-    Write-Host "Stack: $($_.ScriptStackTrace)"         -ForegroundColor Red
-    exit 1
+    throw "[$FunctionAppName / $ResourceGroupName] $_"
 }

@@ -1,0 +1,14 @@
+{
+  "context": {
+    "subscriptionId": "<optional-subscription-guid>"
+  },
+  "lookup": {
+    "resourceName": "<resource-name>",
+    "resourceType": "<optional-resource-type>",
+    "resourceGroup": "<optional-rg-name>"
+  },
+  "principal": {
+    "upn": "<user-upn-or-empty>",
+    "objectId": "<optional-object-id>"
+  }
+}

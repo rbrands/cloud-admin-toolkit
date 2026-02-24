@@ -42,12 +42,13 @@ Write-Host "Using module path: $customModuleRoot" -ForegroundColor Gray
 Write-Host ""
 
 $requiredModules = @(
-    @{ Name = "Az"; MinVersion = "10.0.0"; Description = "Azure PowerShell modules" }
-    @{ Name = "Microsoft.Graph"; MinVersion = "2.0.0"; Description = "Microsoft Graph PowerShell SDK" }
-    @{ Name = "MicrosoftTeams"; MinVersion = "5.0.0"; Description = "Microsoft Teams PowerShell" }
+    @{ Name = "Az";                  MinVersion = "10.0.0"; Description = "Azure PowerShell modules" }
+    @{ Name = "Az.ResourceGraph";    MinVersion = "0.13.0"; Description = "Azure Resource Graph (Search-AzGraph) – included in Az, listed explicitly to ensure availability" }
+    @{ Name = "Microsoft.Graph";     MinVersion = "2.0.0";  Description = "Microsoft Graph PowerShell SDK" }
+    @{ Name = "MicrosoftTeams";      MinVersion = "5.0.0";  Description = "Microsoft Teams PowerShell" }
     @{ Name = "ExchangeOnlineManagement"; MinVersion = "3.0.0"; Description = "Exchange Online PowerShell" }
-    @{ Name = "PnP.PowerShell"; MinVersion = "2.0.0"; Description = "SharePoint PnP PowerShell" }
-    @{ Name = "ImportExcel"; MinVersion = "7.0.0"; Description = "Excel export functionality" }
+    @{ Name = "PnP.PowerShell";      MinVersion = "2.0.0";  Description = "SharePoint PnP PowerShell" }
+    @{ Name = "ImportExcel";         MinVersion = "7.0.0";  Description = "Excel export functionality" }
 )
 
 foreach ($module in $requiredModules) {
