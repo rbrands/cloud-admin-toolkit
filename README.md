@@ -75,6 +75,40 @@ not for single-tenant or project-specific implementations.
 
 ---
 
+## Scripts and Functions
+
+### `shared/`
+
+| File | Type | Description |
+|---|---|---|
+| `Install-Prerequisites.ps1` | Script | Installs all required PowerShell modules. |
+| `Connect-AzToolkit.ps1` | Script | Connects to Azure with deterministic subscription context, config-file driven. |
+| `AzToolkit.Config.psm1` | Module | Shared config-loading and Azure context helpers – imported by all scripts. |
+| `Connect-AzToolkit.template.json` | Template | Config template for `Connect-AzToolkit.ps1`. |
+| `config.template.json` | Template | Generic config template for scripts that only need a subscription context. |
+
+**Exported module functions (`AzToolkit.Config.psm1`)**
+
+| Function | Description |
+|---|---|
+| `Resolve-ToolkitConfigPath` | Resolves a JSON config path by explicit path or by `<Prefix>.<Name>.json` convention. |
+| `Read-ToolkitJsonConfig` | Reads and parses a JSON config file. Returns `$null` when no path is given. |
+| `Set-ToolkitAzContext` | Sets the Azure subscription context from a config object or an explicit subscription ID. |
+
+### `azure/`
+
+> Scripts will be listed here as they are added.
+
+### `entra/`
+
+> Scripts will be listed here as they are added.
+
+### `m365/`
+
+> Scripts will be listed here as they are added.
+
+---
+
 ## Disclaimer
 
 Scripts are provided **as-is** without warranty of any kind.

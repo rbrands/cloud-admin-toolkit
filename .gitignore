@@ -15,6 +15,13 @@ reports/
 .env.*
 local.settings.json
 
+# Ignore all JSON files by default
+**/*.json
+
+# Allow templates and schema files
+!**/*.template.json
+!**/*.schema.json
+
 # OS files
 .DS_Store
 Thumbs.db

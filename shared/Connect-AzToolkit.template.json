@@ -1,0 +1,9 @@
+{
+  "context": {
+    "tenantId": "<tenant-guid>",
+    "subscriptionId": "<subscription-guid>"
+  },
+  "auth": {
+    "useDeviceAuthentication": false
+  }
+}
