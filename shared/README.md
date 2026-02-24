@@ -44,7 +44,7 @@ The `context` section is optional. Scripts work correctly when it is absent.
 Import-Module (Join-Path $PSScriptRoot '..\shared\AzToolkit.Config.psm1') -Force
 
 $config = Read-ToolkitJsonConfig -Path (
-    Resolve-ToolkitConfigPath -Name 'prod' -ScriptRoot $PSScriptRoot -Prefix 'MyScript'
+    Resolve-ToolkitConfigPath -Name 'prod' -ConfigDir $PSScriptRoot -Prefix 'MyScript'
 )
 Set-ToolkitAzContext -Config $config
 ```

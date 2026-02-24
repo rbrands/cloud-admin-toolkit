@@ -18,6 +18,11 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$ConfigName,
 
+    # Directory to search for the config file. Defaults to the script directory.
+    # Use this when config files are stored in a subdirectory.
+    [Parameter(Mandatory = $false)]
+    [string]$ConfigDir,
+
     [Parameter(Mandatory = $false)]
     [string]$TenantId,
 
@@ -37,7 +42,7 @@ Import-Module (Join-Path $PSScriptRoot 'AzToolkit.Config.psm1') -Force
 $resolvedConfigPath = Resolve-ToolkitConfigPath `
     -ExplicitPath $ConfigPath `
     -Name $ConfigName `
-    -ScriptRoot $PSScriptRoot `
+    -ConfigDir $(if ($ConfigDir) { $ConfigDir } else { $PSScriptRoot }) `
     -Prefix 'Connect-AzToolkit'
 $config = Read-ToolkitJsonConfig -Path $resolvedConfigPath
 

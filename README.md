@@ -99,6 +99,13 @@ not for single-tenant or project-specific implementations.
 
 > Scripts will be listed here as they are added.
 
+### `azure/web-platform/`
+
+| File | Type | Description |
+|---|---|---|
+| `Set-AzureFunctionAppHostKey.ps1` | Script | Creates or updates a host key on an Azure Function App via Azure CLI. Uses the current subscription context set by `Connect-AzToolkit.ps1`; `subscriptionId` in config is optional. |
+| `Set-AzureFunctionAppHostKey.template.json` | Template | Config template for `Set-AzureFunctionAppHostKey.ps1`. |
+
 ### `entra/`
 
 > Scripts will be listed here as they are added.

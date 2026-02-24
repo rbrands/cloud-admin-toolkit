@@ -1,0 +1,13 @@
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "functionApp": {
+    "resourceGroupName": "<resource-group-name>",
+    "name": "<function-app-name>"
+  },
+  "hostKey": {
+    "name": "<key-name>",
+    "value": ""
+  }
+}

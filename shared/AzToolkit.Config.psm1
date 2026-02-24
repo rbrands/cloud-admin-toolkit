@@ -3,14 +3,20 @@
     Shared config-loading helpers for AzToolkit scripts.
 
 .DESCRIPTION
-    Provides two exported functions:
+    Provides three exported functions:
 
     Resolve-ToolkitConfigPath
         Resolves the path to a JSON config file either from an explicit path
-        or by convention: <Prefix>.<Name>.json in the caller's script directory.
+        or by convention: <Prefix>.<Name>.json in a given directory.
+        Use -ConfigDir to point to a subdirectory (defaults to the calling
+        script's $PSScriptRoot).
 
     Read-ToolkitJsonConfig
         Reads and parses a JSON config file. Returns $null when no path is given.
+
+    Set-ToolkitAzContext
+        Sets the Azure subscription context from a config object or an
+        explicit subscription ID.
 #>
 
 Set-StrictMode -Version Latest
@@ -27,9 +33,10 @@ function Resolve-ToolkitConfigPath {
     .PARAMETER Name
         Config name. The file <Prefix>.<Name>.json is searched in ScriptRoot.
 
-    .PARAMETER ScriptRoot
-        Directory to search in when using -Name. Pass $PSScriptRoot from
-        the calling script.
+    .PARAMETER ConfigDir
+        Directory where the config file must be located. Scripts pass their
+        own $PSScriptRoot, so the config file is expected in the same directory
+        as the script. Override only when config files live elsewhere.
 
     .PARAMETER Prefix
         Filename prefix used together with -Name (e.g. 'Connect-AzToolkit').
@@ -40,7 +47,7 @@ function Resolve-ToolkitConfigPath {
     param(
         [Parameter()] [string]$ExplicitPath,
         [Parameter()] [string]$Name,
-        [Parameter()] [string]$ScriptRoot,
+        [Parameter()] [string]$ConfigDir,
         [Parameter()] [string]$Prefix = 'config'
     )
 
@@ -49,8 +56,8 @@ function Resolve-ToolkitConfigPath {
     }
 
     if ($Name) {
-        $root = if ($ScriptRoot) { $ScriptRoot } else { $PSScriptRoot }
-        $fileName = "$Prefix.$Name.json"
+        $root        = if ($ConfigDir) { $ConfigDir } else { $PSScriptRoot }
+        $fileName    = "$Prefix.$Name.json"
         $resolvedPath = Join-Path $root $fileName
 
         if (-not (Test-Path $resolvedPath)) {
