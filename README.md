@@ -110,6 +110,8 @@ not for single-tenant or project-specific implementations.
 |---|---|---|
 | `Get-AzRoleAssignmentsForPrincipalOnResource.ps1` | Script | Lists all role assignments (direct and inherited) for a principal on a specific Azure resource. Resolves the resource via Azure Resource Graph. |
 | `Get-AzRoleAssignmentsForPrincipalOnResource.template.json` | Template | Config template for `Get-AzRoleAssignmentsForPrincipalOnResource.ps1`. |
+| `Get-UserRoleAssignments.ps1` | Script | Lists all direct Azure RBAC role assignments for a user across all accessible subscriptions. Resolves users by UPN, object ID, or short name (Kürzel). Supports CSV export. |
+| `Get-UserRoleAssignments.template.json` | Template | Config template for `Get-UserRoleAssignments.ps1`. |
 
 ### `entra/`
 

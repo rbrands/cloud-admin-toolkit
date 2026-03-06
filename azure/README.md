@@ -149,3 +149,95 @@ Minimum built-in role: **Reader** scoped to the target resource or its resource 
     -ResourceGroup 'my-rg' `
     -ObjectId '<principal-object-id>'
 ```
+
+---
+
+### `iam/Get-UserRoleAssignments.ps1` – List all role assignments for a user
+
+Lists all direct Azure RBAC role assignments for a user across all accessible (enabled) subscriptions.
+The user is resolved via Microsoft Entra using UPN, object ID, or a short name ("Kürzel").
+
+When a Kürzel is provided, both the primary and (optionally) the secondary domain are searched,
+so accounts in synced on-premises domains are covered as well.
+Results can optionally be exported to a CSV file.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Get-UserRoleAssignments.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-Upn` | UPN of the user (e.g. `user@contoso.com`). |
+| `-UserKuerzel` | Short name / Kürzel – resolved against `-PrimaryDomain` and optionally `-SecondaryDomain`. |
+| `-ObjectId` | Object ID of the principal. Bypasses the Entra lookup when provided. |
+| `-SubscriptionIds` | Optional. Limits the search to specific subscription IDs (array or comma-separated). |
+| `-PrimaryDomain` | Primary domain used for Kürzel resolution (e.g. `contoso.com`). Required with `-UserKuerzel`. |
+| `-SecondaryDomain` | Optional secondary / on-premises sync domain (e.g. `contoso.onmicrosoft.com`). |
+| `-ExportCsv` | Switch. Exports results to a CSV file in the script directory (or `export.outputDir` from config). |
+
+At least one of `-Upn`, `-UserKuerzel`, or `-ObjectId` must be supplied.
+
+#### Config file
+
+Copy `Get-UserRoleAssignments.template.json` from the same directory, rename it to
+`Get-UserRoleAssignments.<Name>.json` and fill in your values.
+Config files matching `**/*.json` are excluded from source control via `.gitignore`.
+
+```json
+{
+  "principal": {
+    "upn": "<user-upn-or-empty>",
+    "userKuerzel": "<optional-kuerzel>",
+    "objectId": "<optional-object-id>"
+  },
+  "search": {
+    "subscriptionIds": ["<optional-sub-id-1>", "<optional-sub-id-2>"],
+    "primaryDomain": "<primary-domain>",
+    "secondaryDomain": "<optional-secondary-domain>"
+  },
+  "export": {
+    "csv": false,
+    "outputDir": "<optional-output-directory>"
+  }
+}
+```
+
+#### Prerequisites
+
+Requires the `Az.Resources` module (part of the `Az` suite):
+
+```powershell
+.\shared\Install-Prerequisites.ps1
+```
+
+#### Required permissions (minimum)
+
+| Permission | Purpose |
+|---|---|
+| `Microsoft.Authorization/roleAssignments/read` | Listing role assignments via `Get-AzRoleAssignment` |
+| `User.Read.All` (Microsoft Entra) | Resolving users by UPN or Kürzel via `Get-AzADUser` |
+
+Minimum built-in role: **Reader** scoped to each subscription that should be queried.
+
+#### Examples
+
+```powershell
+# Using a config file
+.\azure\iam\Get-UserRoleAssignments.ps1 -ConfigName contoso
+
+# Pass parameters directly
+.\azure\iam\Get-UserRoleAssignments.ps1 -Upn 'user@contoso.com'
+
+# Resolve by Kürzel and export to CSV
+.\azure\iam\Get-UserRoleAssignments.ps1 `
+    -UserKuerzel 'mmm99' `
+    -PrimaryDomain 'contoso.com' `
+    -SecondaryDomain 'contoso.onmicrosoft.com' `
+    -ExportCsv
+
+# Limit to specific subscriptions
+.\azure\iam\Get-UserRoleAssignments.ps1 `
+    -Upn 'user@contoso.com' `
+    -SubscriptionIds '<sub-guid-1>', '<sub-guid-2>'
+```

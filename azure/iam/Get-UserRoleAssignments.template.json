@@ -1,0 +1,16 @@
+{
+  "principal": {
+    "upn": "<user-upn-or-empty>",
+    "userKuerzel": "<optional-kuerzel>",
+    "objectId": "<optional-object-id>"
+  },
+  "search": {
+    "subscriptionIds": ["<optional-sub-id-1>", "<optional-sub-id-2>"],
+    "primaryDomain": "<primary-domain>",
+    "secondaryDomain": "<optional-secondary-domain>"
+  },
+  "export": {
+    "csv": false,
+    "outputDir": "<optional-output-directory>"
+  }
+}
