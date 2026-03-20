@@ -5,6 +5,9 @@
   ],
   "permanentlyDelete": false,
   "deleteSharePointSite": false,
+    ],
+    "teamNames": [
+      "Project Phoenix"
   "skipRecycleBin": false,
   "tenantAdminUrl": "https://contoso-admin.sharepoint.com"
 }

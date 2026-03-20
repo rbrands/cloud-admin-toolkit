@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Removes one or more Teams by Group ID (AAD Object ID of the underlying
-    Microsoft 365 Group).
+    Microsoft 365 Group) or by Team display name.
 
     What is removed (depending on flags):
 
@@ -38,6 +38,9 @@
 
 .EXAMPLE
     .\Remove-Team.ps1 -TeamIds '00000000-0000-0000-0000-000000000001'
+
+.EXAMPLE
+    .\Remove-Team.ps1 -TeamNames 'Project Phoenix'
 
 .EXAMPLE
     .\Remove-Team.ps1 -ConfigName prod -WhatIf
@@ -74,6 +77,11 @@ param(
     # Overrides the teamIds array in the config file.
     [Parameter(Mandatory = $false)]
     [string[]]$TeamIds,
+
+    # Display names of Teams to remove.
+    # Overrides the teamNames array in the config file.
+    [Parameter(Mandatory = $false)]
+    [string[]]$TeamNames,
 
     # SharePoint Online tenant admin URL, e.g. https://contoso-admin.sharepoint.com
     # Required when -DeleteSharePointSite is used and no active PnP admin connection exists.
@@ -118,6 +126,10 @@ if (-not $TeamIds -and $null -ne $config -and $config.teamIds) {
     $TeamIds = [string[]]$config.teamIds
 }
 
+if (-not $TeamNames -and $null -ne $config -and $config.teamNames) {
+    $TeamNames = [string[]]$config.teamNames
+}
+
 if (-not $TenantAdminUrl -and $null -ne $config -and $config.tenantAdminUrl) {
     $TenantAdminUrl = $config.tenantAdminUrl
 }
@@ -136,8 +148,8 @@ if (-not $PermanentlyDelete -and $null -ne $config -and $config.permanentlyDelet
 
 # ── Validation ─────────────────────────────────────────────────────────────────
 
-if (-not $TeamIds -or $TeamIds.Count -eq 0) {
-    Write-Host "No team IDs provided. Specify -TeamIds or set teamIds in the config file." -ForegroundColor Red
+if ((-not $TeamIds -or $TeamIds.Count -eq 0) -and (-not $TeamNames -or $TeamNames.Count -eq 0)) {
+    Write-Host "No team targets provided. Specify -TeamIds and/or -TeamNames, or set teamIds/teamNames in the config file." -ForegroundColor Red
     exit 1
 }
 
@@ -195,7 +207,8 @@ if ($DeleteSharePointSite) {
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 Write-Host "=== Remove-Team ===" -ForegroundColor Cyan
-Write-Host "Teams             : $($TeamIds.Count)" -ForegroundColor Cyan
+Write-Host "Team IDs          : $(if ($TeamIds) { $TeamIds.Count } else { 0 })" -ForegroundColor Cyan
+Write-Host "Team names        : $(if ($TeamNames) { $TeamNames.Count } else { 0 })" -ForegroundColor Cyan
 Write-Host "Permanently delete: $(if ($PermanentlyDelete) { 'Yes – purge M365 group from Entra recycle bin' } else { 'No  – soft-delete (recoverable 30 days)' })" -ForegroundColor Cyan
 Write-Host "Delete SP site    : $(if ($DeleteSharePointSite) { if ($SkipRecycleBin) { 'Yes – bypass SP recycle bin (permanent)' } else { 'Yes – SP admin recycle bin (recoverable)' } } else { 'No' })" -ForegroundColor Cyan
 Write-Host ""
@@ -203,22 +216,82 @@ Write-Host ""
 $successCount = 0
 $skipCount    = 0
 $errorCount   = 0
+$processedGroupIds = @{}
 
-foreach ($teamId in $TeamIds) {
+$teamTargets = @()
+if ($TeamIds) {
+    foreach ($teamId in $TeamIds) {
+        $teamTargets += [PSCustomObject]@{
+            Type  = 'GroupId'
+            Value = $teamId
+        }
+    }
+}
+if ($TeamNames) {
+    foreach ($teamName in $TeamNames) {
+        $teamTargets += [PSCustomObject]@{
+            Type  = 'DisplayName'
+            Value = $teamName
+        }
+    }
+}
 
-    Write-Host "Processing: $teamId" -ForegroundColor Yellow
+foreach ($target in $teamTargets) {
+
+    Write-Host "Processing ($($target.Type)): $($target.Value)" -ForegroundColor Yellow
 
     # ── Resolve team ───────────────────────────────────────────────────────────
 
     $team = $null
-    try {
-        $team = Get-Team -GroupId $teamId -ErrorAction Stop
+    if ($target.Type -eq 'GroupId') {
+        try {
+            $team = Get-Team -GroupId $target.Value -ErrorAction Stop
+        }
+        catch {
+            Write-Host "  - Team not found for GroupId '$($target.Value)' – skipping." -ForegroundColor Gray
+            $skipCount++
+            continue
+        }
     }
-    catch {
-        Write-Host "  - Team not found for GroupId '$teamId' – skipping." -ForegroundColor Gray
+    else {
+        $matchedTeams = @(Get-Team -DisplayName $target.Value -ErrorAction SilentlyContinue)
+        if ($matchedTeams.Count -eq 0) {
+            Write-Host "  - No team found for display name '$($target.Value)' – skipping." -ForegroundColor Gray
+            $skipCount++
+            continue
+        }
+
+        $exactMatches = @($matchedTeams | Where-Object { $_.DisplayName -eq $target.Value })
+        if ($exactMatches.Count -eq 1) {
+            $team = $exactMatches[0]
+        }
+        elseif ($exactMatches.Count -gt 1) {
+            Write-Host "  - Multiple teams with exact display name '$($target.Value)' found – skipping." -ForegroundColor Red
+            foreach ($candidate in $exactMatches) {
+                Write-Host "    Candidate: $($candidate.DisplayName)  |  GroupId: $($candidate.GroupId)" -ForegroundColor Yellow
+            }
+            $skipCount++
+            continue
+        }
+        elseif ($matchedTeams.Count -eq 1) {
+            $team = $matchedTeams[0]
+        }
+        else {
+            Write-Host "  - Multiple teams matched '$($target.Value)' – skipping." -ForegroundColor Red
+            foreach ($candidate in $matchedTeams) {
+                Write-Host "    Candidate: $($candidate.DisplayName)  |  GroupId: $($candidate.GroupId)" -ForegroundColor Yellow
+            }
+            $skipCount++
+            continue
+        }
+    }
+
+    if ($processedGroupIds.ContainsKey($team.GroupId)) {
+        Write-Host "  - Team '$($team.DisplayName)' (GroupId: $($team.GroupId)) already processed – skipping duplicate target." -ForegroundColor Gray
         $skipCount++
         continue
     }
+    $processedGroupIds[$team.GroupId] = $true
 
     Write-Host "  DisplayName : $($team.DisplayName)" -ForegroundColor Gray
     Write-Host "  GroupId     : $($team.GroupId)" -ForegroundColor Gray
