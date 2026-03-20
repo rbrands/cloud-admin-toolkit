@@ -3,11 +3,11 @@
     "00000000-0000-0000-0000-000000000001",
     "00000000-0000-0000-0000-000000000002"
   ],
+  "teamNames": [
+    "Project Phoenix"
+  ],
   "permanentlyDelete": false,
   "deleteSharePointSite": false,
-    ],
-    "teamNames": [
-      "Project Phoenix"
   "skipRecycleBin": false,
   "tenantAdminUrl": "https://contoso-admin.sharepoint.com"
 }

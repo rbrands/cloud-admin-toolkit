@@ -146,6 +146,123 @@ if (-not $PermanentlyDelete -and $null -ne $config -and $config.permanentlyDelet
     $PermanentlyDelete = $true
 }
 
+$purgeMaxAttempts  = 5
+$purgeInitialDelay = 15
+$purgeMaxDelay     = 90
+$spDeleteMaxAttempts  = 6
+$spDeleteInitialDelay = 30
+$spDeleteMaxDelay     = 300
+
+function Get-SharePointAdminUrlFromUrl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url
+    )
+
+    try {
+        $uri = [uri]$Url
+        $host = $uri.Host.ToLowerInvariant()
+        if ($host -match '^(?<tenant>[^.]+?)(?:-admin|-my)?\.sharepoint\.com$') {
+            return "https://$($Matches['tenant'])-admin.sharepoint.com"
+        }
+    }
+    catch {
+        return $null
+    }
+
+    return $null
+}
+
+function Resolve-TeamSharePointUrl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$GroupId
+    )
+
+    $result = [ordered]@{
+        Url       = $null
+        Source    = $null
+        ErrorText = $null
+    }
+
+    # Primary path: Microsoft Graph
+    try {
+        $siteInfo = Invoke-MgGraphRequest -Method GET `
+            -Uri         "https://graph.microsoft.com/v1.0/groups/$GroupId/sites/root" `
+            -ErrorAction Stop
+        if ($siteInfo -and $siteInfo.webUrl) {
+            $result.Url = $siteInfo.webUrl
+            $result.Source = 'Graph'
+            return [PSCustomObject]$result
+        }
+    }
+    catch {
+        $result.ErrorText = $_.Exception.Message
+    }
+
+    # Fallback path: SharePoint admin center (PnP), no Graph sites scope required.
+    try {
+        $tenantSite = $null
+
+        try {
+            $tenantSites = @(Get-PnPTenantSite -Filter "GroupId -eq '$GroupId'" -ErrorAction Stop)
+            if ($tenantSites.Count -gt 0) {
+                $tenantSite = $tenantSites[0]
+            }
+        }
+        catch {
+            # Fallback for tenants where the server-side filter is unavailable.
+            $tenantSite = Get-PnPTenantSite -Detailed -ErrorAction Stop | Where-Object { $_.GroupId -eq $GroupId } | Select-Object -First 1
+        }
+
+        if ($tenantSite -and $tenantSite.Url) {
+            $result.Url = $tenantSite.Url
+            $result.Source = 'PnP'
+            return [PSCustomObject]$result
+        }
+    }
+    catch {
+        if (-not $result.ErrorText) {
+            $result.ErrorText = $_.Exception.Message
+        }
+        else {
+            $result.ErrorText = "$($result.ErrorText) | PnP lookup failed: $($_.Exception.Message)"
+        }
+    }
+
+    return [PSCustomObject]$result
+}
+
+function Test-SharePointSiteStillGroupConnected {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedGroupId
+    )
+
+    try {
+        $tenantSite = Get-PnPTenantSite -Identity $Url -Detailed -ErrorAction Stop
+        if (-not $tenantSite) {
+            return $false
+        }
+
+        if (-not $tenantSite.GroupId) {
+            return $false
+        }
+
+        return ($tenantSite.GroupId.ToString() -eq $ExpectedGroupId)
+    }
+    catch {
+        # If the site cannot be queried anymore, treat it as not group-connected here.
+        return $false
+    }
+}
+
 # ── Validation ─────────────────────────────────────────────────────────────────
 
 if ((-not $TeamIds -or $TeamIds.Count -eq 0) -and (-not $TeamNames -or $TeamNames.Count -eq 0)) {
@@ -179,9 +296,13 @@ if ($PermanentlyDelete -or $DeleteSharePointSite) {
 if ($DeleteSharePointSite) {
     try {
         $pnpConn = Get-PnPConnection -ErrorAction Stop
+        if (-not $TenantAdminUrl) {
+            $TenantAdminUrl = Get-SharePointAdminUrlFromUrl -Url $pnpConn.Url
+        }
+
         if ($pnpConn.Url -notmatch '-admin\.sharepoint\.com') {
             if (-not $TenantAdminUrl) {
-                Write-Host "Active PnP connection is not to the SharePoint admin center and no TenantAdminUrl was provided." -ForegroundColor Red
+                Write-Host "Active PnP connection is not to the SharePoint admin center and tenant admin URL could not be derived automatically." -ForegroundColor Red
                 Write-Host "Specify -TenantAdminUrl (or tenantAdminUrl in config) or connect to the admin center first:" -ForegroundColor Red
                 Write-Host "Connect-PnPOnline -Url https://<tenant>-admin.sharepoint.com -Interactive" -ForegroundColor Red
                 exit 1
@@ -301,15 +422,13 @@ foreach ($target in $teamTargets) {
 
     $sharePointUrl = $null
     if ($DeleteSharePointSite) {
-        try {
-            $siteInfo      = Invoke-MgGraphRequest -Method GET `
-                -Uri         "https://graph.microsoft.com/v1.0/groups/$($team.GroupId)/sites/root" `
-                -ErrorAction Stop
-            $sharePointUrl = $siteInfo.webUrl
-            Write-Host "  SP site     : $sharePointUrl" -ForegroundColor Gray
+        $spResolution = Resolve-TeamSharePointUrl -GroupId $team.GroupId
+        if ($spResolution.Url) {
+            $sharePointUrl = $spResolution.Url
+            Write-Host "  SP site     : $sharePointUrl (resolved via $($spResolution.Source))" -ForegroundColor Gray
         }
-        catch {
-            Write-Host "  ! Could not resolve SharePoint site URL: $($_.Exception.Message)" -ForegroundColor Yellow
+        else {
+            Write-Host "  ! Could not resolve SharePoint site URL: $($spResolution.ErrorText)" -ForegroundColor Yellow
             Write-Host "    The SharePoint site will NOT be deleted for this team." -ForegroundColor Yellow
         }
     }
@@ -335,15 +454,42 @@ foreach ($target in $teamTargets) {
     # ── Step 2: Permanently purge M365 group from Entra ID recycle bin ─────────
 
     if ($PermanentlyDelete) {
-        # Allow a few seconds for the deletion to propagate to the recycle bin
+        # Give Entra a short head start before first purge attempt.
         Start-Sleep -Seconds 10
-        try {
-            Remove-MgDirectoryDeletedItem -DirectoryObjectId $team.GroupId -ErrorAction Stop
-            Write-Host "  - M365 group permanently purged from Entra ID recycle bin." -ForegroundColor Green
+
+        $purged = $false
+        $purgeFailureRecorded = $false
+        for ($attempt = 1; $attempt -le $purgeMaxAttempts; $attempt++) {
+            try {
+                Remove-MgDirectoryDeletedItem -DirectoryObjectId $team.GroupId -ErrorAction Stop
+                Write-Host "  - M365 group permanently purged from Entra ID recycle bin." -ForegroundColor Green
+                $purged = $true
+                break
+            }
+            catch {
+                $message = $_.Exception.Message
+                $isRetryableNotFound = ($message -match 'Request_ResourceNotFound|NotFound|does not exist|queried reference-property objects are not present')
+
+                if ($attempt -lt $purgeMaxAttempts -and $isRetryableNotFound) {
+                    $delay = [int][Math]::Min($purgeInitialDelay * [Math]::Pow(2, $attempt - 1), $purgeMaxDelay)
+                    Write-Host "  ! Purge not ready yet (attempt $attempt/$purgeMaxAttempts): $message" -ForegroundColor Yellow
+                    Write-Host "    Waiting $delay seconds before retry..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds $delay
+                    continue
+                }
+
+                Write-Host "  X Failed to purge group from Entra recycle bin: $message" -ForegroundColor Red
+                Write-Host "    Manual retry command:" -ForegroundColor Yellow
+                Write-Host "    Remove-MgDirectoryDeletedItem -DirectoryObjectId $($team.GroupId)" -ForegroundColor Yellow
+                $errorCount++
+                $purgeFailureRecorded = $true
+                break
+            }
         }
-        catch {
-            Write-Host "  X Failed to purge group from Entra recycle bin: $($_.Exception.Message)" -ForegroundColor Red
-            Write-Host "    Retry in a few minutes:" -ForegroundColor Yellow
+
+        if (-not $purged -and -not $purgeFailureRecorded) {
+            Write-Host "  X Failed to purge group from Entra recycle bin after $purgeMaxAttempts attempts." -ForegroundColor Red
+            Write-Host "    Manual retry command:" -ForegroundColor Yellow
             Write-Host "    Remove-MgDirectoryDeletedItem -DirectoryObjectId $($team.GroupId)" -ForegroundColor Yellow
             $errorCount++
         }
@@ -352,18 +498,53 @@ foreach ($target in $teamTargets) {
     # ── Step 3: Delete the associated SharePoint Online site ───────────────────
 
     if ($DeleteSharePointSite -and $sharePointUrl) {
-        try {
-            Remove-PnPTenantSite `
-                -Url            $sharePointUrl `
-                -SkipRecycleBin:$SkipRecycleBin `
-                -Force `
-                -ErrorAction    Stop
-            $spMode = if ($SkipRecycleBin) { 'permanently' } else { 'into SP admin recycle bin' }
-            Write-Host "  - SharePoint site removed ($spMode)." -ForegroundColor Green
+        $spDeleted = $false
+        for ($attempt = 1; $attempt -le $spDeleteMaxAttempts; $attempt++) {
+            try {
+                Remove-PnPTenantSite `
+                    -Url            $sharePointUrl `
+                    -SkipRecycleBin:$SkipRecycleBin `
+                    -Force `
+                    -ErrorAction    Stop
+                $spMode = if ($SkipRecycleBin) { 'permanently' } else { 'into SP admin recycle bin' }
+                Write-Host "  - SharePoint site removed ($spMode)." -ForegroundColor Green
+                $spDeleted = $true
+                break
+            }
+            catch {
+                $message = $_.Exception.Message
+                $isRetryableGroupBinding = ($message -match 'belongs to a Microsoft 365 group|must delete the group')
+                $isAlreadyGone = ($message -match 'File Not Found|cannot find|does not exist|not found')
+
+                if ($isAlreadyGone) {
+                    Write-Host "  - SharePoint site '$sharePointUrl' is already deleted or no longer available." -ForegroundColor Green
+                    $spDeleted = $true
+                    break
+                }
+
+                if ($attempt -lt $spDeleteMaxAttempts -and $isRetryableGroupBinding) {
+                    $stillGroupConnected = Test-SharePointSiteStillGroupConnected -Url $sharePointUrl -ExpectedGroupId $team.GroupId
+                    $delay = [int][Math]::Min($spDeleteInitialDelay * [Math]::Pow(2, $attempt - 1), $spDeleteMaxDelay)
+                    if ($stillGroupConnected) {
+                        Write-Host "  ! SharePoint still reports the site as connected to GroupId $($team.GroupId) (attempt $attempt/$spDeleteMaxAttempts)." -ForegroundColor Yellow
+                    }
+                    else {
+                        Write-Host "  ! SharePoint site deletion not ready yet (attempt $attempt/$spDeleteMaxAttempts): $message" -ForegroundColor Yellow
+                    }
+                    Write-Host "    Waiting $delay seconds before retry..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds $delay
+                    continue
+                }
+
+                Write-Host "  X Failed to remove SharePoint site '$sharePointUrl': $message" -ForegroundColor Red
+                $errorCount++
+                break
+            }
         }
-        catch {
-            Write-Host "  X Failed to remove SharePoint site '$sharePointUrl': $($_.Exception.Message)" -ForegroundColor Red
-            $errorCount++
+
+        if (-not $spDeleted) {
+            Write-Host "  ! SharePoint site could not be deleted in this run. Retry command:" -ForegroundColor Yellow
+            Write-Host "    Remove-PnPTenantSite -Url '$sharePointUrl' -SkipRecycleBin:$SkipRecycleBin -Force" -ForegroundColor Yellow
         }
     }
 
