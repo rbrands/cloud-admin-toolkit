@@ -96,6 +96,84 @@ Config files matching `**/*.json` are excluded from source control via `.gitigno
 
 ---
 
+### `Connect-M365.ps1` – Microsoft 365 authentication
+
+Connects interactively to Microsoft Graph, Teams, SharePoint Online (PnP), and Exchange Online.
+By default, all four services are connected.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Connect-M365.<Name>.json` from the script directory. |
+| `-TenantId` | Overrides `tenantId` from config. |
+| `-TenantAdminUrl` | Overrides `tenantAdminUrl` from config. Required for SharePoint. |
+| `-PnpClientId` | Overrides `pnpClientId` from config. |
+| `-GraphScopes` | Overrides `graphScopes` from config. |
+| `-UseDeviceAuthentication` | Enables device-code flow for supported services. |
+| `-ExchangeUseDeviceAuthentication` | Enables device-code flow specifically for Exchange Online. |
+| `-ExchangeDisableWAM` | Disables WAM for Exchange Online interactive login. |
+| `-Graph`, `-Teams`, `-SharePoint`, `-Exchange` | Connect only selected services. |
+
+#### Config file
+
+Copy `Connect-M365.template.json`, rename it to `Connect-M365.<Name>.json`
+(for example `Connect-M365.prod.json`) and fill in your values.
+
+```json
+{
+  "tenantId": "<tenant-guid>",
+  "tenantAdminUrl": "https://contoso-admin.sharepoint.com",
+  "graphScopes": [
+    "User.ReadWrite.All",
+    "Group.ReadWrite.All",
+    "Directory.ReadWrite.All",
+    "Sites.ReadWrite.All",
+    "Mail.ReadWrite"
+  ],
+  "pnpClientId": "<entra-app-registration-client-id>",
+  "auth": {
+    "useDeviceAuthentication": false,
+    "exchangeUseDeviceAuthentication": false,
+    "exchangeDisableWAM": false
+  }
+}
+```
+
+#### Examples
+
+```powershell
+# Connect to all M365 services
+.\shared\Connect-M365.ps1 -ConfigName prod
+
+# Connect only Graph and Exchange
+.\shared\Connect-M365.ps1 -ConfigName prod -Graph -Exchange
+```
+
+#### Troubleshooting: Exchange interactive login fails with broker/WAM errors
+
+If Exchange login fails with errors mentioning `CreateBroker`, `MSAL`,
+or `Object reference not set to an instance of an object`, disable WAM for Exchange.
+
+Set this in your `Connect-M365.<Name>.json`:
+
+```json
+{
+  "auth": {
+    "exchangeDisableWAM": true
+  }
+}
+```
+
+Or run once with a parameter:
+
+```powershell
+.\shared\Connect-M365.ps1 -ConfigName prod -ExchangeDisableWAM
+```
+
+---
+
 ### `Install-Prerequisites.ps1` – Module bootstrap
 
 Installs all required PowerShell modules (Az, Microsoft.Graph, ExchangeOnlineManagement, etc.).  

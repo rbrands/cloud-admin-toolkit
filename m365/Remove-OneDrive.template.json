@@ -1,0 +1,8 @@
+{
+  "tenantAdminUrl": "https://contoso-admin.sharepoint.com",
+  "userPrincipalNames": [
+    "user1@contoso.com",
+    "user2@contoso.com"
+  ],
+  "skipRecycleBin": false
+}

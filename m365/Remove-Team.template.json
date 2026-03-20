@@ -1,0 +1,10 @@
+{
+  "teamIds": [
+    "00000000-0000-0000-0000-000000000001",
+    "00000000-0000-0000-0000-000000000002"
+  ],
+  "permanentlyDelete": false,
+  "deleteSharePointSite": false,
+  "skipRecycleBin": false,
+  "tenantAdminUrl": "https://contoso-admin.sharepoint.com"
+}

@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
+# Cloud Admin Toolkit – winget DSC configuration
+# Installs the software prerequisites for running the toolkit scripts.
+#
+# Usage:
+#   winget configure --file .config\prerequisites.dsc.yaml
+
+properties:
+  configurationVersion: 0.2.0
+  resources:
+
+    # ── Runtime ───────────────────────────────────────────────────────────────
+
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: PowerShell7
+      directives:
+        description: PowerShell 7 (required – scripts use PS 7 features)
+        allowPrerelease: false
+      settings:
+        id: Microsoft.PowerShell
+        source: winget
+
+    # ── Developer tooling ─────────────────────────────────────────────────────
+
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: Git
+      directives:
+        description: Git for Windows
+        allowPrerelease: false
+      settings:
+        id: Git.Git
+        source: winget
+
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: AzureCLI
+      directives:
+        description: Azure CLI (az) – complement to Azure PowerShell
+        allowPrerelease: false
+      settings:
+        id: Microsoft.AzureCLI
+        source: winget
+
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: VSCode
+      directives:
+        description: Visual Studio Code
+        allowPrerelease: false
+      settings:
+        id: Microsoft.VisualStudioCode
+        source: winget
+
+    # ── PowerShell modules ────────────────────────────────────────────────────
+    # NOTE: Az, Microsoft.Graph, MicrosoftTeams, ExchangeOnlineManagement,
+    #       PnP.PowerShell and ImportExcel are installed via
+    #       shared\Install-Prerequisites.ps1 because winget DSC does not yet
+    #       provide a first-class PSGallery resource for all of them.
+    # Run Install-Prerequisites.ps1 after this configuration completes.

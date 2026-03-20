@@ -1,0 +1,17 @@
+{
+  "tenantId": "<tenant-guid>",
+  "tenantAdminUrl": "https://contoso-admin.sharepoint.com",
+  "graphScopes": [
+    "User.ReadWrite.All",
+    "Group.ReadWrite.All",
+    "Directory.ReadWrite.All",
+    "Sites.ReadWrite.All",
+    "Mail.ReadWrite"
+  ],
+  "pnpClientId": "<entra-app-registration-client-id>",
+  "auth": {
+    "useDeviceAuthentication": false,
+    "exchangeUseDeviceAuthentication": false,
+    "exchangeDisableWAM": false
+  }
+}

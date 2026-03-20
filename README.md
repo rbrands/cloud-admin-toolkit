@@ -29,6 +29,23 @@ Scripts are designed to be:
 
 ## Getting Started
 
+### Option A – winget DSC (recommended)
+
+Installs all software prerequisites (PowerShell 7, Git, Azure CLI, VS Code)  
+using a single winget configuration file:
+
+```powershell
+winget configure --file .config\prerequisites.dsc.yaml
+```
+
+Then install the required PowerShell modules:
+
+```powershell
+./shared/Install-Prerequisites.ps1
+```
+
+### Option B – manual
+
 Requirements:
 
 - PowerShell 7+
@@ -76,14 +93,22 @@ not for single-tenant or project-specific implementations.
 
 ## Scripts and Functions
 
+### `.config/`
+
+| File | Type | Description |
+|---|---|---|
+| `prerequisites.dsc.yaml` | winget DSC | Installs software prerequisites (PowerShell 7, Git, Azure CLI, VS Code) via `winget configure`. |
+
 ### `shared/`
 
 | File | Type | Description |
 |---|---|---|
 | `Install-Prerequisites.ps1` | Script | Installs all required PowerShell modules. |
 | `Connect-AzToolkit.ps1` | Script | Connects to Azure with deterministic subscription context, config-file driven. |
+| `Connect-M365.ps1` | Script | Connects to Graph, Teams, SharePoint, and Exchange with explicit, config-driven authentication options. |
 | `AzToolkit.Config.psm1` | Module | Shared config-loading and Azure context helpers – imported by all scripts. |
 | `Connect-AzToolkit.template.json` | Template | Config template for `Connect-AzToolkit.ps1`. |
+| `Connect-M365.template.json` | Template | Config template for `Connect-M365.ps1`. |
 
 **Exported module functions (`AzToolkit.Config.psm1`)**
 
@@ -115,11 +140,60 @@ not for single-tenant or project-specific implementations.
 
 ### `entra/`
 
-> Scripts will be listed here as they are added.
+| File | Type | Description |
+|---|---|---|
+| `Get-ClientSecretsAndCertificatesExpirationDate.ps1` | Script | Lists expiration dates of client secrets and certificates for all Entra ID App Registrations. |
+| `Get-ClientSecretsAndCertificatesExpirationDate.template.json` | Template | Config template for `Get-ClientSecretsAndCertificatesExpirationDate.ps1`. |
+| `Remove-EntraUser.ps1` | Script | Removes Entra ID user accounts for a list of users. Supports soft-delete and permanent delete (purge from recycling bin). |
+| `Remove-EntraUser.template.json` | Template | Config template for `Remove-EntraUser.ps1`. |
 
 ### `m365/`
 
-> Scripts will be listed here as they are added.
+| File | Type | Description |
+|---|---|---|
+| `Remove-Mailbox.ps1` | Script | Removes Exchange Online mailboxes for a list of users. Supports soft-delete and permanent delete. |
+| `Remove-Mailbox.template.json` | Template | Config template for `Remove-Mailbox.ps1`. |
+| `Remove-OneDrive.ps1` | Script | Removes OneDrive for Business sites for a list of users via PnP PowerShell. Supports soft-delete and permanent delete. |
+| `Remove-OneDrive.template.json` | Template | Config template for `Remove-OneDrive.ps1`. |
+
+---
+
+## Scenarios
+
+### User Offboarding
+
+Full removal of a user account including mailbox and OneDrive requires three steps,
+because Exchange Online synchronizes with Entra ID asynchronously.
+
+With the current scripts, OneDrive lookup is UPN/profile-based.
+If you delete the Entra user first, OneDrive lookup can return "not found".
+Mailbox purge can still require Exchange sync time.
+Use the sequence below.
+
+```powershell
+# 1. Connect to SharePoint via toolkit script
+.\shared\Connect-M365.ps1 -ConfigName offboarding -SharePoint
+
+# 2. Delete OneDrive for Business site (while user profile lookup still works)
+.\m365\Remove-OneDrive.ps1 -ConfigName offboarding -SkipRecycleBin
+
+# 3. Soft-delete Entra ID user
+.\shared\Connect-M365.ps1 -ConfigName offboarding -Graph
+.\entra\Remove-EntraUser.ps1 -ConfigName offboarding
+
+# 4. Wait for Exchange to sync (minutes to hours), then permanently delete mailbox
+.\shared\Connect-M365.ps1 -ConfigName offboarding -Exchange
+.\m365\Remove-Mailbox.ps1 -ConfigName offboarding -PermanentlyDelete
+
+# 5. Permanently delete Entra ID user from recycling bin
+.\shared\Connect-M365.ps1 -ConfigName offboarding -Graph
+.\entra\Remove-EntraUser.ps1 -ConfigName offboarding -PermanentlyDelete
+```
+
+> **Note:** If Exchange is not synced yet, rerun `Remove-Mailbox.ps1` later.
+> **Note:** If step 4 reports that the user is still soft-deleted in Entra ID, run step 5 first and retry step 4 after a short delay.
+> **Note:** OneDrive content is retained for the SharePoint retention period
+> (default 30 days, max 180 days) unless `-SkipRecycleBin` is used.
 
 ---
 
