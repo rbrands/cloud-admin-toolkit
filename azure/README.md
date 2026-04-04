@@ -241,3 +241,142 @@ Minimum built-in role: **Reader** scoped to each subscription that should be que
     -Upn 'user@contoso.com' `
     -SubscriptionIds '<sub-guid-1>', '<sub-guid-2>'
 ```
+
+---
+
+### `iam/Assign-KeyVaultCertificatesOfficerToUser.ps1` – Assign Key Vault Certificates Officer to a user
+
+Assigns the built-in Azure RBAC role **Key Vault Certificates Officer** to a user on a specific Key Vault scope.
+The script is idempotent: existing assignments are detected and not duplicated.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Assign-KeyVaultCertificatesOfficerToUser.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Sets the Azure subscription context before lookup/assignment. |
+| `-KeyVaultName` | Name of the target Key Vault. **Required.** |
+| `-ResourceGroup` | Optional. Disambiguates Key Vault lookup when needed. |
+| `-Upn` | UPN of the user (e.g. `user@contoso.com`). Either `-Upn` or `-ObjectId` is required. |
+| `-ObjectId` | Object ID of the user. Takes precedence over `-Upn`. |
+
+#### Config file
+
+Copy `Assign-KeyVaultCertificatesOfficerToUser.template.json` from the same directory, rename it to
+`Assign-KeyVaultCertificatesOfficerToUser.<Name>.json` and fill in your values.
+Config files matching `**/*.json` are excluded from source control via `.gitignore`.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "keyVaultName": "kv-prod-001",
+    "resourceGroup": ""
+  },
+  "principal": {
+    "upn": "user@contoso.com",
+    "objectId": ""
+  }
+}
+```
+
+#### Required permissions (minimum)
+
+| Permission | Purpose |
+|---|---|
+| `Microsoft.Authorization/roleAssignments/read` | Check existing assignment |
+| `Microsoft.Authorization/roleAssignments/write` | Create assignment |
+| `Microsoft.KeyVault/vaults/read` | Resolve target Key Vault |
+
+Minimum built-in role: **User Access Administrator** or **Owner** on the target Key Vault scope.
+
+#### Examples
+
+```powershell
+# Using a config file
+.\azure\iam\Assign-KeyVaultCertificatesOfficerToUser.ps1 -ConfigName prod
+
+# Pass parameters directly
+.\azure\iam\Assign-KeyVaultCertificatesOfficerToUser.ps1 `
+    -KeyVaultName 'kv-prod-001' `
+    -Upn 'user@contoso.com'
+
+# Explicit subscription and object ID
+.\azure\iam\Assign-KeyVaultCertificatesOfficerToUser.ps1 `
+    -SubscriptionId '<sub-guid>' `
+    -KeyVaultName 'kv-prod-001' `
+    -ResourceGroup 'rg-security' `
+    -ObjectId '<user-object-id>'
+```
+
+---
+
+### `iam/List-CosmosDbRBAC.ps1` – List Cosmos DB SQL RBAC assignments with resolved names
+
+Lists Cosmos DB SQL data-plane RBAC assignments using the `Az.CosmosDB` PowerShell module and resolves:
+
+- Role definition IDs to role names
+- Principal IDs to readable Entra identities (user, service principal, or group)
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `List-CosmosDbRBAC.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Switches the Az PowerShell subscription context before querying assignments. |
+| `-AccountName` | Cosmos DB account name. **Required.** |
+| `-ResourceGroupName` | Resource group of the Cosmos DB account. **Required.** |
+| `-ResolvePrincipalNames` | Optional bool. Defaults to `true`. Set to `$false` to skip Entra name resolution and show only object IDs. |
+
+#### Config file
+
+Copy `List-CosmosDbRBAC.template.json` from the same directory, rename it to
+`List-CosmosDbRBAC.<Name>.json` and fill in your values.
+Config files matching `**/*.json` are excluded from source control via `.gitignore`.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "accountName": "cosmos-brands-advisory",
+    "resourceGroupName": "rg-brands-advisory"
+  },
+  "view": {
+    "resolvePrincipalNames": true
+  }
+}
+```
+
+#### Required permissions (minimum)
+
+| Permission | Purpose |
+|---|---|
+| `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments/read` | List Cosmos DB SQL role assignments |
+| `Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions/read` | Resolve role definition names |
+| `User.Read.All` (Entra, optional) | Resolve principal IDs to readable names |
+
+#### Examples
+
+```powershell
+# Using a config file
+.\azure\iam\List-CosmosDbRBAC.ps1 -ConfigName prod
+
+# With readable role and principal names
+.\azure\iam\List-CosmosDbRBAC.ps1 `
+    -AccountName 'cosmos-brands-advisory' `
+    -ResourceGroupName 'rg-brands-advisory'
+
+# Skip principal name resolution
+.\azure\iam\List-CosmosDbRBAC.ps1 `
+    -AccountName 'cosmos-brands-advisory' `
+    -ResourceGroupName 'rg-brands-advisory' `
+    -ResolvePrincipalNames $false
+```

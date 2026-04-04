@@ -1,0 +1,16 @@
+{
+  "appRegistrationName": "my-app-prd",
+  "serviceNowTicket": "RITM0000000",
+  "tenantId": "",
+  "graphScopes": [
+    "Application.ReadWrite.All"
+  ],
+  "auth": {
+    "connectGraph": false,
+    "useDeviceAuthentication": false
+  },
+  "outputPath": ".\\Certificates",
+  "validityYears": 2,
+  "keyLength": 2048,
+  "pfxPassword": "temp"
+}

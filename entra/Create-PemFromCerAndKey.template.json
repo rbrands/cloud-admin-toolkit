@@ -1,0 +1,4 @@
+{
+  "certificateBaseName": "my-app-prd",
+  "certificatesDir": ".\\Certificates"
+}

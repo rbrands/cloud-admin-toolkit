@@ -43,3 +43,10 @@ This repository is a reusable PowerShell toolkit for enterprise Microsoft Cloud 
 - Import `AzToolkit.Config.psm1` using a path relative to `$PSScriptRoot`.
 - Software prerequisites are managed via `.config/prerequisites.dsc.yaml` (winget DSC)
   and `shared/Install-Prerequisites.ps1` (PowerShell modules).
+
+## Documentation
+- Document all scripts with comment-based help (using `Get-Help` syntax).
+- Use the `README.md` to provide an overview of the repository, design principles, and detailed documentation for each script, including usage examples and security guidance.
+- Use the `copilot-instructions.md` file to specify coding conventions and guidelines for AI-generated code suggestions.
+- Keep global documentation in `README.md` and implementation details in individual README.md in subfolders if necessary.
+

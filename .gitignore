@@ -15,6 +15,16 @@ reports/
 .env.*
 local.settings.json
 
+# Security: generated certificate artifacts
+Certificates/
+**/Certificates/
+*.pfx
+*.p12
+*.cer
+*.crt
+*.pem
+*.key
+
 # Ignore all JSON files by default
 **/*.json
 

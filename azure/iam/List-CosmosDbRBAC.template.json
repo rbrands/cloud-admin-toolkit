@@ -1,0 +1,12 @@
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "accountName": "cosmos-brands-advisory",
+    "resourceGroupName": "rg-brands-advisory"
+  },
+  "view": {
+    "resolvePrincipalNames": true
+  }
+}

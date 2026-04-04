@@ -86,6 +86,12 @@ To ensure reusability and neutrality:
 - Scripts should be idempotent where feasible
 - Authentication must be explicit (no implicit auto-connect logic)
 
+Security note for certificate-generating scripts:
+
+- Generated certificate artifacts are ignored via `.gitignore` (`Certificates/`, `*.cer`, `*.key`, `*.pfx`, etc.)
+- Private keys must never be committed to source control
+- Store production certificates and keys in Azure Key Vault
+
 This repository is designed for reusable enterprise scenarios,  
 not for single-tenant or project-specific implementations.
 
@@ -135,6 +141,10 @@ not for single-tenant or project-specific implementations.
 |---|---|---|
 | `Get-AzRoleAssignmentsForPrincipalOnResource.ps1` | Script | Lists all role assignments (direct and inherited) for a principal on a specific Azure resource. Resolves the resource via Azure Resource Graph. |
 | `Get-AzRoleAssignmentsForPrincipalOnResource.template.json` | Template | Config template for `Get-AzRoleAssignmentsForPrincipalOnResource.ps1`. |
+| `Assign-KeyVaultCertificatesOfficerToUser.ps1` | Script | Assigns the Azure RBAC role `Key Vault Certificates Officer` to a user on a specific Key Vault. Idempotent (no duplicate assignments). |
+| `Assign-KeyVaultCertificatesOfficerToUser.template.json` | Template | Config template for `Assign-KeyVaultCertificatesOfficerToUser.ps1`. |
+| `List-CosmosDbRBAC.ps1` | Script | Lists Cosmos DB SQL RBAC assignments for an account and resolves role definition IDs and principal IDs to readable names. |
+| `List-CosmosDbRBAC.template.json` | Template | Config template for `List-CosmosDbRBAC.ps1`. |
 | `Get-UserRoleAssignments.ps1` | Script | Lists all direct Azure RBAC role assignments for a user across all accessible subscriptions. Resolves users by UPN, object ID, or short name (Kürzel). Supports CSV export. |
 | `Get-UserRoleAssignments.template.json` | Template | Config template for `Get-UserRoleAssignments.ps1`. |
 
@@ -144,6 +154,10 @@ not for single-tenant or project-specific implementations.
 |---|---|---|
 | `Get-ClientSecretsAndCertificatesExpirationDate.ps1` | Script | Lists expiration dates of client secrets and certificates for all Entra ID App Registrations. |
 | `Get-ClientSecretsAndCertificatesExpirationDate.template.json` | Template | Config template for `Get-ClientSecretsAndCertificatesExpirationDate.ps1`. |
+| `Create-AppRegistrationWithCertificate.ps1` | Script | Creates an Entra ID App Registration, generates a self-signed certificate, uploads it as key credential, and exports certificate files. Supports command-line parameters and JSON config. |
+| `Create-AppRegistrationWithCertificate.template.json` | Template | Config template for `Create-AppRegistrationWithCertificate.ps1`. |
+| `Create-PemFromCerAndKey.ps1` | Script | Creates a combined PEM file from `<CertificateBaseName>.key` and `<CertificateBaseName>.cer` in the certificates directory. |
+| `Create-PemFromCerAndKey.template.json` | Template | Config template for `Create-PemFromCerAndKey.ps1`. |
 | `Remove-EntraUser.ps1` | Script | Removes Entra ID user accounts for a list of users. Supports soft-delete and permanent delete (purge from recycling bin). |
 | `Remove-EntraUser.template.json` | Template | Config template for `Remove-EntraUser.ps1`. |
 
