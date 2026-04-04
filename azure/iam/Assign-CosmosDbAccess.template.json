@@ -1,0 +1,18 @@
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "accountName": "cosmos-brands-advisory",
+    "resourceGroupName": "rg-brands-advisory"
+  },
+  "principal": {
+    "upn": "user@contoso.com",
+    "objectId": ""
+  },
+  "access": {
+    "scope": "/",
+    "roleName": "Cosmos DB Built-in Data Contributor",
+    "roleDefinitionId": ""
+  }
+}

@@ -315,6 +315,88 @@ Minimum built-in role: **User Access Administrator** or **Owner** on the target 
 
 ---
 
+### `iam/Assign-CosmosDbAccess.ps1` - Assign Cosmos DB SQL data-plane access to a user
+
+Creates a Cosmos DB SQL role assignment for a user on a target Cosmos DB account and scope.
+
+The script is idempotent: existing assignments are detected and not duplicated.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Assign-CosmosDbAccess.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Sets the Azure subscription context before assignment. |
+| `-AccountName` | Cosmos DB account name. **Required.** |
+| `-ResourceGroupName` | Resource group of the Cosmos DB account. **Required.** |
+| `-Scope` | Optional data-plane scope. Defaults to `/` (account-wide). Examples: `/dbs/mydb`, `/dbs/mydb/colls/mycontainer`. |
+| `-RoleName` | Optional role name. Default is `Cosmos DB Built-in Data Contributor`. Ignored when `-RoleDefinitionId` is provided. |
+| `-RoleDefinitionId` | Optional role definition id (guid or full id). Takes precedence over `-RoleName`. |
+| `-Upn` | UPN of the user (e.g. `user@contoso.com`). Either `-Upn` or `-ObjectId` is required. |
+| `-ObjectId` | Object ID of the principal. Takes precedence over `-Upn`. |
+
+#### Config file
+
+Copy `Assign-CosmosDbAccess.template.json` from the same directory, rename it to
+`Assign-CosmosDbAccess.<Name>.json` and fill in your values.
+Config files matching `**/*.json` are excluded from source control via `.gitignore`.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "accountName": "cosmos-brands-advisory",
+    "resourceGroupName": "rg-brands-advisory"
+  },
+  "principal": {
+    "upn": "user@contoso.com",
+    "objectId": ""
+  },
+  "access": {
+    "scope": "/",
+    "roleName": "Cosmos DB Built-in Data Contributor",
+    "roleDefinitionId": ""
+  }
+}
+```
+
+#### Required permissions (minimum)
+
+| Permission | Purpose |
+|---|---|
+| `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments/read` | Check existing assignments |
+| `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments/write` | Create role assignment |
+| `Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions/read` | Resolve role definitions |
+
+Required module: `Az.CosmosDB`
+
+#### Examples
+
+```powershell
+# Using a config file
+.\azure\iam\Assign-CosmosDbAccess.ps1 -ConfigName prod
+
+# Assign account-wide data contributor access to a user
+.\azure\iam\Assign-CosmosDbAccess.ps1 `
+    -AccountName 'cosmos-brands-advisory' `
+    -ResourceGroupName 'rg-brands-advisory' `
+    -Upn 'user@contoso.com'
+
+# Assign read access on a specific database scope
+.\azure\iam\Assign-CosmosDbAccess.ps1 `
+    -AccountName 'cosmos-brands-advisory' `
+    -ResourceGroupName 'rg-brands-advisory' `
+    -ObjectId '<principal-object-id>' `
+    -RoleName 'Cosmos DB Built-in Data Reader' `
+    -Scope '/dbs/appdb'
+```
+
+---
+
 ### `iam/List-CosmosDbRBAC.ps1` – List Cosmos DB SQL RBAC assignments with resolved names
 
 Lists Cosmos DB SQL data-plane RBAC assignments using the `Az.CosmosDB` PowerShell module and resolves:
