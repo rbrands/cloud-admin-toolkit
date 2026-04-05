@@ -143,6 +143,8 @@ not for single-tenant or project-specific implementations.
 | `Get-AzRoleAssignmentsForPrincipalOnResource.template.json` | Template | Config template for `Get-AzRoleAssignmentsForPrincipalOnResource.ps1`. |
 | `Assign-KeyVaultCertificatesOfficerToUser.ps1` | Script | Assigns the Azure RBAC role `Key Vault Certificates Officer` to a user on a specific Key Vault. Idempotent (no duplicate assignments). |
 | `Assign-KeyVaultCertificatesOfficerToUser.template.json` | Template | Config template for `Assign-KeyVaultCertificatesOfficerToUser.ps1`. |
+| `Assign-KeyVaultSecretsOfficerToUser.ps1` | Script | Assigns the Azure RBAC role `Key Vault Secrets Officer` to a user on a specific Key Vault. Idempotent. |
+| `Assign-KeyVaultSecretsOfficerToUser.template.json` | Template | Config template for `Assign-KeyVaultSecretsOfficerToUser.ps1`. |
 | `Assign-CosmosDbAccess.ps1` | Script | Assigns Cosmos DB SQL data-plane access to a user (idempotent), with configurable role and scope. |
 | `Assign-CosmosDbAccess.template.json` | Template | Config template for `Assign-CosmosDbAccess.ps1`. |
 | `List-CosmosDbRBAC.ps1` | Script | Lists Cosmos DB SQL RBAC assignments for an account and resolves role definition IDs and principal IDs to readable names. |

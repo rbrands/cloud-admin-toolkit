@@ -315,6 +315,76 @@ Minimum built-in role: **User Access Administrator** or **Owner** on the target 
 
 ---
 
+### `iam/Assign-KeyVaultSecretsOfficerToUser.ps1` – Assign Key Vault Secrets Officer to a user
+
+Assigns the built-in Azure RBAC role **Key Vault Secrets Officer** to a user on a specific Key Vault scope.
+The script is idempotent: existing assignments at Key Vault scope are detected and not duplicated.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Assign-KeyVaultSecretsOfficerToUser.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Sets the Azure subscription context before lookup/assignment. |
+| `-KeyVaultName` | Name of the target Key Vault. **Required.** |
+| `-ResourceGroup` | Optional. Disambiguates Key Vault lookup when needed. |
+| `-Upn` | UPN of the user (e.g. `user@contoso.com`). Either `-Upn` or `-ObjectId` is required. |
+| `-ObjectId` | Object ID of the user. Takes precedence over `-Upn`. |
+
+#### Config file
+
+Copy `Assign-KeyVaultSecretsOfficerToUser.template.json` from the same directory, rename it to
+`Assign-KeyVaultSecretsOfficerToUser.<Name>.json` and fill in your values.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "keyVaultName": "kv-prod-001",
+    "resourceGroup": ""
+  },
+  "principal": {
+    "upn": "user@contoso.com",
+    "objectId": ""
+  }
+}
+```
+
+#### Required permissions (minimum)
+
+| Permission | Purpose |
+|---|---|
+| `Microsoft.Authorization/roleAssignments/read` | Check existing assignment |
+| `Microsoft.Authorization/roleAssignments/write` | Create assignment |
+| `Microsoft.KeyVault/vaults/read` | Resolve target Key Vault |
+
+Minimum built-in role: **User Access Administrator** or **Owner** on the target Key Vault scope.
+
+#### Examples
+
+```powershell
+# Using a config file
+.\azure\iam\Assign-KeyVaultSecretsOfficerToUser.ps1 -ConfigName prod
+
+# Pass parameters directly
+.\azure\iam\Assign-KeyVaultSecretsOfficerToUser.ps1 `
+    -KeyVaultName 'kv-prod-001' `
+    -Upn 'user@contoso.com'
+
+# Explicit subscription and object ID
+.\azure\iam\Assign-KeyVaultSecretsOfficerToUser.ps1 `
+    -SubscriptionId '<sub-guid>' `
+    -KeyVaultName 'kv-prod-001' `
+    -ResourceGroup 'rg-security' `
+    -ObjectId '<user-object-id>'
+```
+
+---
+
 ### `iam/Assign-CosmosDbAccess.ps1` - Assign Cosmos DB SQL data-plane access to a user
 
 Creates a Cosmos DB SQL role assignment for a user on a target Cosmos DB account and scope.
