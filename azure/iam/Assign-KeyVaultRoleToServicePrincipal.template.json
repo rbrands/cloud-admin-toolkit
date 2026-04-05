@@ -1,0 +1,15 @@
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "keyVaultName": "kv-prod-001",
+    "resourceGroup": ""
+  },
+  "principal": {
+    "displayName": "sp-myapp-github",
+    "appId": "",
+    "objectId": ""
+  },
+  "role": "Key Vault Secrets User"
+}

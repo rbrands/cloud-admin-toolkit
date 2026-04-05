@@ -397,6 +397,84 @@ Required module: `Az.CosmosDB`
 
 ---
 
+### `iam/Assign-KeyVaultRoleToServicePrincipal.ps1` – Assign an Azure RBAC role on a Key Vault to a service principal
+
+Assigns an Azure RBAC role at Key Vault scope to a service principal.
+The default role is **Key Vault Secrets User**.
+The script is idempotent: existing assignments are detected and not duplicated.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Assign-KeyVaultRoleToServicePrincipal.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Sets the Azure subscription context. Falls back to active Az context. |
+| `-KeyVaultName` | Name of the target Key Vault. **Required.** |
+| `-ResourceGroup` | Optional. Disambiguates Key Vault lookup when multiple vaults share the same name. |
+| `-Role` | RBAC role to assign. Default: `Key Vault Secrets User`. |
+| `-DisplayName` | Display name of the service principal (e.g. `sp-myapp-github`). |
+| `-AppId` | Application (client) ID of the service principal. |
+| `-ObjectId` | Object ID of the service principal. Takes precedence over `-AppId` and `-DisplayName`. |
+
+At least one of `-DisplayName`, `-AppId`, or `-ObjectId` is required.
+
+#### Config file
+
+Copy `Assign-KeyVaultRoleToServicePrincipal.template.json`, rename to
+`Assign-KeyVaultRoleToServicePrincipal.<Name>.json` and fill in your values.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "keyVaultName": "kv-prod-001",
+    "resourceGroup": ""
+  },
+  "principal": {
+    "displayName": "sp-myapp-github",
+    "appId": "",
+    "objectId": ""
+  },
+  "role": "Key Vault Secrets User"
+}
+```
+
+`context.subscriptionId` is optional when already connected via `Connect-AzToolkit.ps1`.
+
+#### Required permissions (minimum)
+
+| Permission | Purpose |
+|---|---|
+| `Microsoft.Authorization/roleAssignments/read` | Check existing assignment |
+| `Microsoft.Authorization/roleAssignments/write` | Create assignment |
+| `Microsoft.KeyVault/vaults/read` | Resolve target Key Vault |
+
+Minimum built-in role: **User Access Administrator** or **Owner** on the target Key Vault scope.
+
+#### Examples
+
+```powershell
+# Using a config file (recommended)
+.\azure\iam\Assign-KeyVaultRoleToServicePrincipal.ps1 -ConfigName prod
+
+# Resolve by display name
+.\azure\iam\Assign-KeyVaultRoleToServicePrincipal.ps1 `
+    -KeyVaultName 'kv-prod-001' `
+    -DisplayName 'sp-myapp-github'
+
+# Assign a different role
+.\azure\iam\Assign-KeyVaultRoleToServicePrincipal.ps1 `
+    -KeyVaultName 'kv-prod-001' `
+    -AppId '<client-id>' `
+    -Role 'Key Vault Secrets Officer'
+```
+
+---
+
 ### `iam/List-CosmosDbRBAC.ps1` – List Cosmos DB SQL RBAC assignments with resolved names
 
 Lists Cosmos DB SQL data-plane RBAC assignments using the `Az.CosmosDB` PowerShell module and resolves:

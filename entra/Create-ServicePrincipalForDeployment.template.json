@@ -1,0 +1,18 @@
+{
+  "appRegistrationName": "sp-myapp-github",
+  "serviceNowTicket": "RITM0000000",
+  "subscriptionId": "__SUBSCRIPTION_ID__",
+  "resourceGroupName": "rg-myapp",
+  "role": "Contributor",
+  "secretValidityMonths": 24,
+  "outputPath": ".\\Credentials",
+  "tenantId": "__TENANT_ID__",
+  "graphScopes": [
+    "Application.ReadWrite.All"
+  ],
+  "auth": {
+    "connectGraph": true,
+    "connectAzure": true,
+    "useDeviceAuthentication": false
+  }
+}

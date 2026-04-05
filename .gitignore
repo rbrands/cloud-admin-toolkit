@@ -25,6 +25,11 @@ Certificates/
 *.pem
 *.key
 
+# Security: generated deployment credentials
+Credentials/
+**/Credentials/
+*.github-credentials.json
+
 # Ignore all JSON files by default
 **/*.json
 

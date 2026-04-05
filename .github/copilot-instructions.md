@@ -49,4 +49,5 @@ This repository is a reusable PowerShell toolkit for enterprise Microsoft Cloud 
 - Use the `README.md` to provide an overview of the repository, design principles, and detailed documentation for each script, including usage examples and security guidance.
 - Use the `copilot-instructions.md` file to specify coding conventions and guidelines for AI-generated code suggestions.
 - Keep global documentation in `README.md` and implementation details in individual README.md in subfolders if necessary.
+- Update the documentation with every code change to ensure it remains accurate and helpful.
 
