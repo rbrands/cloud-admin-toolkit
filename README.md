@@ -149,6 +149,8 @@ not for single-tenant or project-specific implementations.
 | `List-CosmosDbRBAC.template.json` | Template | Config template for `List-CosmosDbRBAC.ps1`. |
 | `Get-UserRoleAssignments.ps1` | Script | Lists all direct Azure RBAC role assignments for a user across all accessible subscriptions. Resolves users by UPN, object ID, or short name (Kürzel). Supports CSV export. |
 | `Get-UserRoleAssignments.template.json` | Template | Config template for `Get-UserRoleAssignments.ps1`. |
+| `Assign-KeyVaultRoleToServicePrincipal.ps1` | Script | Assigns an Azure RBAC role on a Key Vault to a service principal. Resolves the SP by ObjectId, AppId, or display name. Idempotent. |
+| `Assign-KeyVaultRoleToServicePrincipal.template.json` | Template | Config template for `Assign-KeyVaultRoleToServicePrincipal.ps1`. |
 
 ### `entra/`
 
@@ -158,6 +160,12 @@ not for single-tenant or project-specific implementations.
 | `Get-ClientSecretsAndCertificatesExpirationDate.template.json` | Template | Config template for `Get-ClientSecretsAndCertificatesExpirationDate.ps1`. |
 | `Create-AppRegistrationWithCertificate.ps1` | Script | Creates an Entra ID App Registration, generates a self-signed certificate, uploads it as key credential, and exports certificate files. Supports command-line parameters and JSON config. |
 | `Create-AppRegistrationWithCertificate.template.json` | Template | Config template for `Create-AppRegistrationWithCertificate.ps1`. |
+| `Create-AppRegistrationWithClientSecret.ps1` | Script | Creates an Entra ID App Registration with a client secret. Outputs the secret value (shown once) to console and clipboard. |
+| `Create-AppRegistrationWithClientSecret.template.json` | Template | Config template for `Create-AppRegistrationWithClientSecret.ps1`. |
+| `Create-ServicePrincipalForDeployment.ps1` | Script | Creates an App Registration with a client secret, assigns an Azure RBAC role on a resource group, and exports a GitHub Actions credentials JSON file. |
+| `Create-ServicePrincipalForDeployment.template.json` | Template | Config template for `Create-ServicePrincipalForDeployment.ps1`. |
+| `Add-FederatedCredentialForGitHub.ps1` | Script | Adds an OIDC federated identity credential to an existing App Registration for passwordless GitHub Actions authentication via `azure/login@v2`. Idempotent. |
+| `Add-FederatedCredentialForGitHub.template.json` | Template | Config template for `Add-FederatedCredentialForGitHub.ps1`. |
 | `Create-PemFromCerAndKey.ps1` | Script | Creates a combined PEM file from `<CertificateBaseName>.key` and `<CertificateBaseName>.cer` in the certificates directory. |
 | `Create-PemFromCerAndKey.template.json` | Template | Config template for `Create-PemFromCerAndKey.ps1`. |
 | `Remove-EntraUser.ps1` | Script | Removes Entra ID user accounts for a list of users. Supports soft-delete and permanent delete (purge from recycling bin). |
@@ -171,6 +179,8 @@ not for single-tenant or project-specific implementations.
 | `Remove-Mailbox.template.json` | Template | Config template for `Remove-Mailbox.ps1`. |
 | `Remove-OneDrive.ps1` | Script | Removes OneDrive for Business sites for a list of users via PnP PowerShell. Supports soft-delete and permanent delete. |
 | `Remove-OneDrive.template.json` | Template | Config template for `Remove-OneDrive.ps1`. |
+| `Remove-Team.ps1` | Script | Removes Microsoft Teams teams for a list of team names or IDs. Supports soft-delete and permanent delete. |
+| `Remove-Team.template.json` | Template | Config template for `Remove-Team.ps1`. |
 
 ---
 
