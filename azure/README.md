@@ -475,6 +475,81 @@ Minimum built-in role: **User Access Administrator** or **Owner** on the target 
 
 ---
 
+### `iam/Assign-ResourceGroupRoleToServicePrincipal.ps1` – Assign an Azure RBAC role on a resource group to a service principal
+
+Assigns an Azure RBAC role on a resource group to a service principal.
+The default role is `Contributor`.
+
+The script is idempotent: if the same assignment already exists it is reported and skipped.
+The service principal can be identified by ObjectId, AppId, or display name.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Assign-ResourceGroupRoleToServicePrincipal.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Switches the Az PowerShell subscription context. Falls back to current Az context. |
+| `-ResourceGroupName` | Name of the resource group. **Required.** |
+| `-Role` | RBAC role to assign. Default: `Contributor`. |
+| `-DisplayName` | Display name of the service principal. Resolved via `Get-AzADServicePrincipal`. |
+| `-AppId` | Application (client) ID of the service principal. |
+| `-ObjectId` | Object ID of the service principal. Takes precedence over AppId and DisplayName. |
+
+At least one of `-DisplayName`, `-AppId`, or `-ObjectId` is required.
+
+#### Config file
+
+Copy `Assign-ResourceGroupRoleToServicePrincipal.template.json`, rename to
+`Assign-ResourceGroupRoleToServicePrincipal.<Name>.json` and fill in your values.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "resourceGroupName": "rg-myapp"
+  },
+  "principal": {
+    "displayName": "sp-myapp-github",
+    "appId": "",
+    "objectId": ""
+  },
+  "role": "Contributor"
+}
+```
+
+`subscriptionId` is optional when already connected via `Connect-AzToolkit.ps1`.
+
+#### Required permissions
+
+- `User Access Administrator` or `Owner` at resource group scope
+- `Microsoft.Authorization/roleAssignments/read`
+- `Microsoft.Authorization/roleAssignments/write`
+- `Application.Read.All` (when resolving by AppId or DisplayName)
+
+#### Examples
+
+```powershell
+# Using a config file (recommended)
+.\azure\iam\Assign-ResourceGroupRoleToServicePrincipal.ps1 -ConfigName myapp
+
+# Resolve by display name
+.\azure\iam\Assign-ResourceGroupRoleToServicePrincipal.ps1 `
+    -ResourceGroupName 'rg-myapp' `
+    -DisplayName 'sp-myapp-github'
+
+# Assign a different role
+.\azure\iam\Assign-ResourceGroupRoleToServicePrincipal.ps1 `
+    -ResourceGroupName 'rg-myapp' `
+    -AppId '<client-id>' `
+    -Role 'Reader'
+```
+
+---
+
 ### `iam/List-CosmosDbRBAC.ps1` – List Cosmos DB SQL RBAC assignments with resolved names
 
 Lists Cosmos DB SQL data-plane RBAC assignments using the `Az.CosmosDB` PowerShell module and resolves:

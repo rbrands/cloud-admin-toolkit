@@ -151,6 +151,8 @@ not for single-tenant or project-specific implementations.
 | `Get-UserRoleAssignments.template.json` | Template | Config template for `Get-UserRoleAssignments.ps1`. |
 | `Assign-KeyVaultRoleToServicePrincipal.ps1` | Script | Assigns an Azure RBAC role on a Key Vault to a service principal. Resolves the SP by ObjectId, AppId, or display name. Idempotent. |
 | `Assign-KeyVaultRoleToServicePrincipal.template.json` | Template | Config template for `Assign-KeyVaultRoleToServicePrincipal.ps1`. |
+| `Assign-ResourceGroupRoleToServicePrincipal.ps1` | Script | Assigns an Azure RBAC role on a resource group to a service principal. Default role: `Contributor`. Resolves SP by ObjectId, AppId, or display name. Idempotent. |
+| `Assign-ResourceGroupRoleToServicePrincipal.template.json` | Template | Config template for `Assign-ResourceGroupRoleToServicePrincipal.ps1`. |
 
 ### `entra/`
 

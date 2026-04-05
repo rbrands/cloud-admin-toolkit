@@ -1,0 +1,14 @@
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "target": {
+    "resourceGroupName": "rg-myapp"
+  },
+  "principal": {
+    "displayName": "sp-myapp-github",
+    "appId": "",
+    "objectId": ""
+  },
+  "role": "Contributor"
+}
