@@ -241,7 +241,8 @@ $existingAssignment = Get-AzRoleAssignment `
     -ObjectId           $assigneeObjectId `
     -Scope              $scope `
     -RoleDefinitionName $Role `
-    -ErrorAction        SilentlyContinue
+    -ErrorAction        SilentlyContinue |
+    Where-Object { $_.Scope -eq $scope }
 
 if ($existingAssignment) {
     Write-Host 'Role assignment already exists. No change required.' -ForegroundColor Green
