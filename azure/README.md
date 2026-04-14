@@ -7,6 +7,161 @@ RBAC, Policy, Arc and Update Manager.
 
 ## Scripts
 
+### `storage/Read-BlobStorageContainer.ps1` – Download all blobs from a container
+
+Lists all blobs in an Azure Blob Storage container and downloads them to a local directory.
+The virtual directory structure embedded in blob names is preserved as subdirectories under
+the output folder.
+
+Authentication uses the **current Azure AD identity** (no storage key required).  
+A `subscriptionId` in the config file is optional and only needed to override the current context.
+
+The local `downloads/` folder is excluded from source control via `.gitignore`.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Read-BlobStorageContainer.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Overrides the current Azure context subscription. |
+| `-StorageAccountName` | Name of the Azure Storage Account. Overrides `storage.storageAccountName` from config. |
+| `-ContainerName` | Name of the blob container to read. Overrides `storage.containerName` from config. |
+| `-LocalPath` | Local output directory. Defaults to `.\downloads\<account>\<container>`. Overrides `output.localPath` from config. |
+
+#### Config file
+
+Copy `Read-BlobStorageContainer.template.json` from the same directory, rename it to  
+`Read-BlobStorageContainer.<Name>.json` and fill in your values.  
+Config files matching `**/*.json` are excluded from source control via `.gitignore`.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "storage": {
+    "storageAccountName": "<storage-account-name>",
+    "containerName": "<container-name>"
+  },
+  "output": {
+    "localPath": ""
+  }
+}
+```
+
+`context.subscriptionId` and `output.localPath` are optional.
+
+#### Required permission (minimum)
+
+**Storage Blob Data Reader** – scoped to the storage account or the container.
+
+#### Prerequisites
+
+```powershell
+.\shared\Install-Prerequisites.ps1
+```
+
+#### Examples
+
+```powershell
+# Recommended workflow: authenticate first, then run the script
+.\shared\Connect-AzToolkit.ps1 -ConfigName mytenant
+.\azure\storage\Read-BlobStorageContainer.ps1 -ConfigName prod
+
+# Pass parameters directly
+.\azure\storage\Read-BlobStorageContainer.ps1 `
+    -StorageAccountName 'mystorageaccount' `
+    -ContainerName 'mycontainer'
+
+# Download to a custom local path
+.\azure\storage\Read-BlobStorageContainer.ps1 `
+    -StorageAccountName 'mystorageaccount' `
+    -ContainerName 'mycontainer' `
+    -LocalPath 'C:\Temp\blob-export'
+```
+
+---
+
+### `storage/Write-BlobStorageContainer.ps1` – Upload local files to a container
+
+Recursively uploads all files from a local directory to an Azure Blob Storage container.
+The path relative to the source directory is used as the blob name, so the local directory
+structure is preserved as virtual directories in the container. Existing blobs are overwritten.
+
+Supports the same two authentication modes as `Read-BlobStorageContainer.ps1` (Azure AD identity
+or Storage Account Key).
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-ConfigPath` | Explicit path to a JSON config file. |
+| `-ConfigName` | Loads `Write-BlobStorageContainer.<Name>.json` from the script directory. |
+| `-ConfigDir` | Override the directory to search for the config file. Defaults to the script directory. |
+| `-SubscriptionId` | Optional. Overrides the current Azure context subscription. |
+| `-StorageAccountName` | Name of the Azure Storage Account. Overrides `storage.storageAccountName` from config. |
+| `-ContainerName` | Name of the blob container to upload to. Overrides `storage.containerName` from config. |
+| `-ResourceGroupName` | Resource group of the storage account. Required when `-UseStorageKey` is set. |
+| `-UseStorageKey` | Authenticate via storage account key instead of Azure AD identity. |
+| `-LocalPath` | Local directory to upload. **Required.** Overrides `input.localPath` from config. |
+| `-Filter` | Optional glob pattern (e.g. `*.json`). Defaults to `*` (all files). Overrides `input.filter` from config. |
+
+#### Config file
+
+Copy `Write-BlobStorageContainer.template.json` from the same directory, rename it to  
+`Write-BlobStorageContainer.<Name>.json` and fill in your values.  
+Config files matching `**/*.json` are excluded from source control via `.gitignore`.
+
+```json
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "storage": {
+    "storageAccountName": "<storage-account-name>",
+    "containerName": "<container-name>",
+    "resourceGroupName": "<resource-group-name>",
+    "useStorageKey": false
+  },
+  "input": {
+    "localPath": "<absolute-or-relative-path-to-upload>",
+    "filter": "*"
+  }
+}
+```
+
+#### Required permission (minimum)
+
+**Storage Blob Data Contributor** – scoped to the storage account or container (Azure AD mode).  
+**Owner** or **Contributor** – sufficient when using `-UseStorageKey`.
+
+#### Examples
+
+```powershell
+# Recommended workflow: authenticate first, then run the script
+.\shared\Connect-AzToolkit.ps1 -ConfigName mytenant
+.\azure\storage\Write-BlobStorageContainer.ps1 -ConfigName prod
+
+# Pass parameters directly (Storage Key auth)
+.\azure\storage\Write-BlobStorageContainer.ps1 `
+    -StorageAccountName 'mystorageaccount' `
+    -ContainerName 'mycontainer' `
+    -ResourceGroupName 'my-rg' `
+    -LocalPath 'C:\export' `
+    -UseStorageKey
+
+# Upload only JSON files
+.\azure\storage\Write-BlobStorageContainer.ps1 `
+    -StorageAccountName 'mystorageaccount' `
+    -ContainerName 'mycontainer' `
+    -LocalPath 'C:\export' `
+    -Filter '*.json'
+```
+
+---
+
 ### `web-platform/Set-AzureFunctionAppHostKey.ps1` – Set a Function App host key
 
 Creates or updates a named host key on an Azure Function App using the Azure CLI.  

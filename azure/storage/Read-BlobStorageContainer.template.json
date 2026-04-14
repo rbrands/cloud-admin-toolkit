@@ -1,0 +1,14 @@
+{
+  "context": {
+    "subscriptionId": ""
+  },
+  "storage": {
+    "storageAccountName": "<storage-account-name>",
+    "containerName": "<container-name>",
+    "resourceGroupName": "<resource-group-name>",
+    "useStorageKey": false
+  },
+  "output": {
+    "localPath": ""
+  }
+}

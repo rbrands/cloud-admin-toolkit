@@ -37,6 +37,9 @@ Credentials/
 !**/*.template.json
 !**/*.schema.json
 
+# Downloaded blob content (Read-BlobStorageContainer.ps1)
+azure/storage/downloads/
+
 # OS files
 .DS_Store
 Thumbs.db
