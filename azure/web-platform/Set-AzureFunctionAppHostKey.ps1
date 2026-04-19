@@ -1,8 +1,10 @@
 <#
 .SYNOPSIS
-    Creates or updates a host key on an Azure Function App using Azure CLI.
+    Creates or updates a host key on an Azure Function App using Az PowerShell (Invoke-AzRestMethod).
 
 .DESCRIPTION
+    Uses the Az PowerShell session established by Connect-AzToolkit.ps1 — no separate 'az login' required.
+
     Supports:
     - -ConfigPath  (explicit path to JSON config file)
     - -ConfigName  (loads Set-AzureFunctionAppHostKey.<Name>.json from script directory)
@@ -100,101 +102,84 @@ if ($resolvedConfigPath) {
     Write-Host "Using config: $resolvedConfigPath" -ForegroundColor Gray
 }
 Write-Host ''
-if ($SubscriptionId) {
-    Write-Host "Subscription:   $SubscriptionId" -ForegroundColor Cyan
-} else {
-    Write-Host 'Subscription:   (using current Azure context)' -ForegroundColor Cyan
-}
-Write-Host "Resource Group: $ResourceGroupName" -ForegroundColor Cyan
-Write-Host "Function App:   $FunctionAppName"   -ForegroundColor Cyan
-Write-Host "Host Key Name:  $HostKeyName"       -ForegroundColor Cyan
-Write-Host ''
 
 try {
-    # Check if Azure CLI is available
-    az version 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Azure CLI (az) is not installed or not in PATH. See: https://learn.microsoft.com/cli/azure/install-azure-cli'
-    }
-
-    # Check if logged in to Azure CLI
-    Write-Host 'Checking Azure CLI login status...' -ForegroundColor Gray
-    az account show 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Not logged in to Azure CLI. Run 'az login' first."
+    # Verify Az PowerShell session is active
+    $ctx = Get-AzContext -ErrorAction Stop
+    if (-not $ctx) {
+        throw "Not connected to Azure. Run Connect-AzToolkit.ps1 first."
     }
 
     # Set the subscription context only if explicitly provided
     if ($SubscriptionId) {
-        Write-Host 'Setting Azure CLI subscription context...' -ForegroundColor Gray
-        az account set --subscription $SubscriptionId 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to set subscription context '$SubscriptionId'. Ensure you have access."
-        }
+        Write-Host "Setting subscription context to '$SubscriptionId'..." -ForegroundColor Gray
+        Set-AzContext -SubscriptionId $SubscriptionId -ErrorAction Stop | Out-Null
+        $ctx = Get-AzContext -ErrorAction Stop
     }
+
+    $effectiveSubscriptionId = $ctx.Subscription.Id
+
+    Write-Host "Subscription:   $($ctx.Subscription.Name) ($effectiveSubscriptionId)" -ForegroundColor Cyan
+    Write-Host "Resource Group: $ResourceGroupName"                                    -ForegroundColor Cyan
+    Write-Host "Function App:   $FunctionAppName"                                      -ForegroundColor Cyan
+    Write-Host "Host Key Name:  $HostKeyName"                                          -ForegroundColor Cyan
+    Write-Host ''
+
+    $apiVersion = '2022-03-01'
+    $basePath   = "/subscriptions/$effectiveSubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Web/sites/$FunctionAppName"
 
     # Verify the Function App exists
     Write-Host "Verifying Function App '$FunctionAppName'..." -ForegroundColor Gray
-    $functionAppJson = az functionapp show --name $FunctionAppName --resource-group $ResourceGroupName 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Function App '$FunctionAppName' not found in resource group '$ResourceGroupName'."
+    $appResponse = Invoke-AzRestMethod -Method GET -Path "${basePath}?api-version=$apiVersion" -ErrorAction Stop
+    if ($appResponse.StatusCode -ne 200) {
+        throw "Function App '$FunctionAppName' not found in resource group '$ResourceGroupName'. Status: $($appResponse.StatusCode)"
     }
 
-    $functionApp = $functionAppJson | ConvertFrom-Json
+    $functionApp = $appResponse.Content | ConvertFrom-Json
     Write-Host 'Found Function App:' -ForegroundColor Green
-    Write-Host "  Name:           $($functionApp.name)"          -ForegroundColor Green
-    Write-Host "  Resource Group: $($functionApp.resourceGroup)" -ForegroundColor Green
-    Write-Host "  Location:       $($functionApp.location)"      -ForegroundColor Green
+    Write-Host "  Name:           $($functionApp.name)"                   -ForegroundColor Green
+    Write-Host "  Resource Group: $($functionApp.properties.resourceGroup ?? $ResourceGroupName)" -ForegroundColor Green
+    Write-Host "  Location:       $($functionApp.location)"               -ForegroundColor Green
     Write-Host ''
 
-    # Set the host key
+    # Set the host key via REST API
     Write-Host "Setting host key '$HostKeyName'..." -ForegroundColor Gray
+    $keyPath = "${basePath}/host/default/functionKeys/${HostKeyName}?api-version=$apiVersion"
     if (-not [string]::IsNullOrWhiteSpace($HostKeyValue)) {
         Write-Host 'Using provided key value.' -ForegroundColor Gray
-        az functionapp keys set --name $FunctionAppName --resource-group $ResourceGroupName `
-            --key-type functionKeys --key-name $HostKeyName --key-value $HostKeyValue `
-            --output json 2>&1 | Out-Null
+        $body = @{ properties = @{ value = $HostKeyValue } } | ConvertTo-Json -Compress
     } else {
         Write-Host 'No value provided - Azure will auto-generate the key.' -ForegroundColor Gray
-        az functionapp keys set --name $FunctionAppName --resource-group $ResourceGroupName `
-            --key-type functionKeys --key-name $HostKeyName `
-            --output json 2>&1 | Out-Null
+        $body = '{ "properties": {} }'
+    }
+    $setResponse = Invoke-AzRestMethod -Method PUT -Path $keyPath -Payload $body -ErrorAction Stop
+    if ($setResponse.StatusCode -notin @(200, 201)) {
+        throw "Failed to set host key '$HostKeyName'. Status: $($setResponse.StatusCode). $($setResponse.Content)"
     }
 
-    # Retrieve and display the key
+    # Retrieve and display the key via REST API
     Write-Host 'Retrieving key value...' -ForegroundColor Gray
-    $listResult = az functionapp keys list --name $FunctionAppName --resource-group $ResourceGroupName --output json 2>&1
+    $listResponse = Invoke-AzRestMethod -Method POST `
+        -Path "${basePath}/host/default/listkeys?api-version=$apiVersion" `
+        -Payload '{}' -ErrorAction Stop
 
     Write-Host ''
-    if ($listResult) {
-        try {
-            $jsonLines = $listResult | Where-Object { $_ -match '^\s*[\{\[]' -or $_ -match '^\s*"' -or $_ -match '^\s*\}' -or $_ -match '^\s*\]' }
-            $jsonString = $jsonLines -join "`n"
+    if ($listResponse.StatusCode -eq 200) {
+        $allKeys   = $listResponse.Content | ConvertFrom-Json
+        $targetKey = $allKeys.functionKeys.PSObject.Properties | Where-Object { $_.Name -eq $HostKeyName }
 
-            if ($jsonString) {
-                $allKeys   = $jsonString | ConvertFrom-Json
-                $targetKey = $allKeys.functionKeys.PSObject.Properties | Where-Object { $_.Name -eq $HostKeyName }
-
-                if ($targetKey) {
-                    Write-Host "SUCCESS: Host key '$HostKeyName' has been set!" -ForegroundColor Green
-                    Write-Host "Key Value: $($targetKey.Value)"                 -ForegroundColor Green
-                    Write-Host ''
-                    Write-Host 'IMPORTANT: Save this key value securely.' -ForegroundColor Yellow
-                } else {
-                    Write-Host "SUCCESS: Host key '$HostKeyName' has been set!" -ForegroundColor Green
-                    Write-Host 'Note: Key not found in list response. Retrieve it from the Azure Portal.' -ForegroundColor Yellow
-                }
-            } else {
-                Write-Host "SUCCESS: Host key '$HostKeyName' has been set!" -ForegroundColor Green
-                Write-Host 'Note: Could not retrieve key value. Retrieve it from the Azure Portal.' -ForegroundColor Yellow
-            }
-        } catch {
+        if ($targetKey) {
             Write-Host "SUCCESS: Host key '$HostKeyName' has been set!" -ForegroundColor Green
-            Write-Host "Note: Could not parse key value. Error: $($_.Exception.Message)" -ForegroundColor Gray
+            Write-Host "Key Value: $($targetKey.Value)"                 -ForegroundColor Green
+            Write-Host ''
+            Write-Host 'IMPORTANT: Save this key value securely.' -ForegroundColor Yellow
+        } else {
+            Write-Host "SUCCESS: Host key '$HostKeyName' has been set!" -ForegroundColor Green
+            Write-Host 'Note: Key not found in list response. Retrieve it from the Azure Portal.' -ForegroundColor Yellow
         }
     } else {
         Write-Host "SUCCESS: Host key '$HostKeyName' has been set!" -ForegroundColor Green
-        Write-Host 'Note: No output received. Retrieve the key from the Azure Portal.' -ForegroundColor Yellow
+        Write-Host 'Note: Could not retrieve key value. Retrieve it from the Azure Portal.' -ForegroundColor Yellow
     }
 } catch {
     throw "[$FunctionAppName / $ResourceGroupName] $_"
