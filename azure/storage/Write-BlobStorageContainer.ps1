@@ -10,6 +10,10 @@
 
     Existing blobs with the same name are overwritten.
 
+    The Content-Type header is set automatically based on the file extension
+    (e.g. image/png, text/html, application/javascript). Unknown extensions
+    fall back to application/octet-stream.
+
     Two authentication modes are supported:
 
     1. Azure AD identity (default, -UseStorageKey $false)
@@ -185,6 +189,7 @@ else {
 
 # --- Enumerate local files ---
 $localRoot  = (Resolve-Path $LocalPath).Path
+
 $files      = @(Get-ChildItem -Path $localRoot -Recurse -File -Filter $Filter)
 
 if ($files.Count -eq 0) {
@@ -198,18 +203,56 @@ Write-Host ""
 $successCount = 0
 $errorCount   = 0
 
+# MIME type lookup by file extension
+function Get-MimeType {
+    param([string]$Extension)
+    $map = @{
+        '.html'  = 'text/html'
+        '.htm'   = 'text/html'
+        '.css'   = 'text/css'
+        '.js'    = 'application/javascript'
+        '.mjs'   = 'application/javascript'
+        '.json'  = 'application/json'
+        '.xml'   = 'application/xml'
+        '.svg'   = 'image/svg+xml'
+        '.png'   = 'image/png'
+        '.jpg'   = 'image/jpeg'
+        '.jpeg'  = 'image/jpeg'
+        '.gif'   = 'image/gif'
+        '.webp'  = 'image/webp'
+        '.ico'   = 'image/x-icon'
+        '.woff'  = 'font/woff'
+        '.woff2' = 'font/woff2'
+        '.ttf'   = 'font/ttf'
+        '.otf'   = 'font/otf'
+        '.eot'   = 'application/vnd.ms-fontobject'
+        '.pdf'   = 'application/pdf'
+        '.zip'   = 'application/zip'
+        '.txt'   = 'text/plain'
+        '.csv'   = 'text/csv'
+        '.md'    = 'text/markdown'
+        '.map'   = 'application/json'
+        '.webmanifest' = 'application/manifest+json'
+    }
+    $ext = $Extension.ToLower()
+    if ($map.ContainsKey($ext)) { return $map[$ext] }
+    return 'application/octet-stream'
+}
+
 foreach ($file in $files) {
     # Derive blob name from relative path, using forward slashes as separator
     $relativePath = $file.FullName.Substring($localRoot.Length).TrimStart('\', '/')
     $blobName     = $relativePath -replace '\\', '/'
+    $contentType  = Get-MimeType -Extension $file.Extension
 
     try {
-        Write-Host "  Uploading: $blobName" -ForegroundColor Yellow
+        Write-Host "  Uploading: $blobName ($contentType)" -ForegroundColor Yellow
         $null = Set-AzStorageBlobContent `
-            -File      $file.FullName `
-            -Container $ContainerName `
-            -Blob      $blobName `
-            -Context   $storageContext `
+            -File       $file.FullName `
+            -Container  $ContainerName `
+            -Blob       $blobName `
+            -Context    $storageContext `
+            -Properties @{ ContentType = $contentType } `
             -Force
         $successCount++
         Write-Host "  -> OK" -ForegroundColor Green
