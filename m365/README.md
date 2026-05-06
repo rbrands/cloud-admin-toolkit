@@ -3,6 +3,47 @@
 Scripts for administrative and operational tasks 
 across Exchange, Teams, SharePoint and compliance.
 
+## Check-TeamsMeetingPolicyAllowAnonymousJoin.ps1
+
+Reads the global Teams Meeting Policy and reports whether anonymous users
+are allowed to join meetings (`AllowAnonymousUsersToJoinMeeting`).
+
+The script outputs the current value with color-coded status:
+
+- **Green** – anonymous join is disabled (recommended for regulated environments).
+- **Red** – anonymous join is enabled; the output includes the remediation command.
+
+Prerequisites: `Connect-MicrosoftTeams` must be called first.
+
+```powershell
+# Connect to Teams, then run the check
+.\shared\Connect-M365.ps1 -ConfigName prod -Teams
+.\m365\Check-TeamsMeetingPolicyAllowAnonymousJoin.ps1
+```
+
+Required permission: **Teams Administrator** (or Global Reader / Global Administrator).
+
+To remediate a finding, use `Disable-TeamsMeetingPolicyAnonymousJoin.ps1` (see below).
+
+## Disable-TeamsMeetingPolicyAnonymousJoin.ps1
+
+Sets `AllowAnonymousUsersToJoinMeeting = $false` in the global Teams Meeting Policy.
+The script is **idempotent**: if the setting is already disabled, no change is made.
+
+Supports `-WhatIf` to preview the change without applying it.
+
+Prerequisites: `Connect-MicrosoftTeams` must be called first.
+
+```powershell
+# Preview
+.\m365\Disable-TeamsMeetingPolicyAnonymousJoin.ps1 -WhatIf
+
+# Apply
+.\m365\Disable-TeamsMeetingPolicyAnonymousJoin.ps1
+```
+
+Required permission: **Teams Administrator** (or Global Administrator).
+
 ## Remove-Team.ps1
 
 `Remove-Team.ps1` supports both direct IDs and display-name lookup:

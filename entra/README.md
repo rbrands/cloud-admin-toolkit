@@ -15,6 +15,7 @@ governance, and cross-tenant scenarios.
 | `Add-FederatedCredentialForGitHub.ps1` | Adds an OIDC federated identity credential to an existing App Registration for passwordless GitHub Actions authentication. |
 | `Create-PemFromCerAndKey.ps1` | Creates a PEM file from `<CertificateBaseName>.key` and `<CertificateBaseName>.cer`. |
 | `Get-ClientSecretsAndCertificatesExpirationDate.ps1` | Lists expiration dates of client secrets and certificates for App Registrations. |
+| `Get-EntraAuthenticationMethods.ps1` | Lists all configured Authentication Method policies including enabled state and group targets; highlights EmailOTP explicitly. |
 | `Remove-EntraUser.ps1` | Removes Entra ID users (soft-delete and optional permanent delete). |
 
 ---
