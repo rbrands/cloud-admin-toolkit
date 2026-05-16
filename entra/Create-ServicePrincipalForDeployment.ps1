@@ -1,12 +1,16 @@
 <#
 .SYNOPSIS
-    Creates an Entra ID App Registration with a client secret and assigns an Azure RBAC role,
-    ready for use with GitHub Actions (azure/login@v2).
+    Creates an Entra ID App Registration and assigns an Azure RBAC role,
+    ready for use with GitHub Actions OIDC (azure/login@v2).
 
 .DESCRIPTION
     Creates an App Registration and matching Enterprise Application (service principal),
-    generates a client secret, assigns an Azure RBAC role on a resource group,
-    and exports the credentials as a JSON file in the format required by GitHub Actions.
+    assigns an Azure RBAC role on a resource group,
+    and exports the OIDC credentials (clientId, tenantId, subscriptionId) as a JSON file
+    for use with GitHub Actions (azure/login@v2 with federated credentials / OIDC).
+
+    No client secret is created. Use Add-FederatedCredentialForGitHub.ps1 to add
+    the required federated credential after running this script.
 
     Supports:
     - -ConfigPath  (explicit path to JSON config file)
@@ -20,9 +24,6 @@
     Authentication can be handled in two explicit ways:
     - Pre-connect manually via Connect-MgGraph / Connect-AzAccount before running the script, or
     - Use -ConnectGraph / -ConnectAzure to let this script connect explicitly.
-
-    NOTE: Add the following to your .gitignore:
-    # Credentials/*.github-credentials.json
 
 .EXAMPLE
     .\Create-ServicePrincipalForDeployment.ps1 -ConfigName brands-advisory
@@ -65,10 +66,6 @@ param(
     # Azure RBAC role to assign.
     [Parameter(Mandatory = $false)]
     [string]$Role = 'Contributor',
-
-    # Client secret validity in months.
-    [Parameter(Mandatory = $false)]
-    [int]$SecretValidityMonths = 24,
 
     # Output directory for the credentials JSON file.
     [Parameter(Mandatory = $false)]
@@ -133,11 +130,6 @@ if (-not $PSBoundParameters.ContainsKey('ResourceGroupName') -and $null -ne $con
 if (-not $PSBoundParameters.ContainsKey('Role') -and $null -ne $config -and
     $config.PSObject.Properties['role']) {
     $Role = [string]$config.role
-}
-
-if (-not $PSBoundParameters.ContainsKey('SecretValidityMonths') -and $null -ne $config -and
-    $config.PSObject.Properties['secretValidityMonths']) {
-    $SecretValidityMonths = [int]$config.secretValidityMonths
 }
 
 if (-not $PSBoundParameters.ContainsKey('OutputPath') -and $null -ne $config -and $config.outputPath) {
@@ -208,11 +200,6 @@ if (-not $ResourceGroupName) {
     exit 1
 }
 
-if ($SecretValidityMonths -lt 1) {
-    Write-Host "SecretValidityMonths must be greater than or equal to 1." -ForegroundColor Red
-    exit 1
-}
-
 # ── Header ─────────────────────────────────────────────────────────────────────
 
 Write-Host "=== Create-ServicePrincipalForDeployment ===" -ForegroundColor Cyan
@@ -223,7 +210,6 @@ Write-Host "App name         : $AppRegistrationName" -ForegroundColor Gray
 Write-Host "Subscription     : $SubscriptionId" -ForegroundColor Gray
 Write-Host "Resource group   : $ResourceGroupName" -ForegroundColor Gray
 Write-Host "Role             : $Role" -ForegroundColor Gray
-Write-Host "Secret validity  : $SecretValidityMonths months" -ForegroundColor Gray
 Write-Host "Output path      : $OutputPath" -ForegroundColor Gray
 Write-Host "Graph connect    : $(if ($ConnectGraph) { 'Connect in script' } else { 'Use existing session' })" -ForegroundColor Gray
 Write-Host "Azure connect    : $(if ($ConnectAzure) { 'Connect in script' } else { 'Use existing session' })" -ForegroundColor Gray
@@ -293,20 +279,6 @@ try {
     $sp = New-MgServicePrincipal -AppId $app.AppId -Tags @('WindowsAzureActiveDirectoryIntegratedApp')
     Write-Host "  SP Object ID: $($sp.Id)" -ForegroundColor Green
 
-    # ── Create Client Secret ───────────────────────────────────────────────────
-
-    Write-Host 'Adding client secret...' -ForegroundColor Yellow
-    $secretEndDate = (Get-Date).AddMonths($SecretValidityMonths)
-
-    $passwordCredential = @{
-        DisplayName = 'github-actions'
-        EndDateTime = $secretEndDate
-    }
-
-    $secret = Add-MgApplicationPassword -ApplicationId $app.Id -PasswordCredential $passwordCredential
-    Write-Host "  Secret ID  : $($secret.KeyId)" -ForegroundColor Green
-    Write-Host "  Expires    : $($secret.EndDateTime)" -ForegroundColor Green
-
     # ── Assign Azure RBAC Role ─────────────────────────────────────────────────
 
     Write-Host "Assigning role '$Role' on resource group '$ResourceGroupName'..." -ForegroundColor Yellow
@@ -348,16 +320,9 @@ try {
     Write-Host 'Building GitHub Actions credentials JSON...' -ForegroundColor Yellow
 
     $githubJson = [ordered]@{
-        clientId                         = $app.AppId
-        clientSecret                     = $secret.SecretText
-        subscriptionId                   = $SubscriptionId
-        tenantId                         = $context.TenantId
-        activeDirectoryEndpointUrl       = 'https://login.microsoftonline.com'
-        resourceManagerEndpointUrl       = 'https://management.azure.com/'
-        activeDirectoryGraphResourceId   = 'https://graph.windows.net/'
-        sqlManagementEndpointUrl         = 'https://management.core.windows.net:8443/'
-        galleryEndpointUrl               = 'https://gallery.azure.com/'
-        managementEndpointUrl            = 'https://management.core.windows.net/'
+        clientId       = $app.AppId
+        subscriptionId = $SubscriptionId
+        tenantId       = $context.TenantId
     } | ConvertTo-Json
 
     # ── Save credentials file ──────────────────────────────────────────────────
@@ -382,7 +347,6 @@ try {
         SubscriptionId  = $SubscriptionId
         ResourceGroup   = $ResourceGroupName
         Role            = $Role
-        SecretExpires   = $secret.EndDateTime
         CredentialsFile = $credFilePath
     }
 
@@ -390,14 +354,13 @@ try {
     $result | Format-List
 
     Set-Clipboard -Value $githubJson
-    Write-Host 'Copied GitHub Actions credentials JSON to clipboard.' -ForegroundColor Green
+    Write-Host 'Copied GitHub Actions OIDC credentials JSON to clipboard.' -ForegroundColor Green
 
     Write-Host ''
-    Write-Host 'IMPORTANT SECURITY NOTICE:' -ForegroundColor Red
-    Write-Host '  The credentials JSON contains a client secret in plaintext.' -ForegroundColor Red
-    Write-Host '  Store it securely and NEVER commit it to source control.' -ForegroundColor Red
-    Write-Host '  Add *.github-credentials.json to .gitignore.' -ForegroundColor Red
-    Write-Host '  Rotate the secret before it expires.' -ForegroundColor Red
+    Write-Host 'NEXT STEPS:' -ForegroundColor Cyan
+    Write-Host '  Run Add-FederatedCredentialForGitHub.ps1 to add the federated credential (OIDC).' -ForegroundColor Yellow
+    Write-Host '  Configure the following GitHub Actions secrets/variables:' -ForegroundColor Yellow
+    Write-Host '    AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID' -ForegroundColor Yellow
 }
 catch {
     Write-Host 'ERROR: Failed to create service principal for deployment.' -ForegroundColor Red

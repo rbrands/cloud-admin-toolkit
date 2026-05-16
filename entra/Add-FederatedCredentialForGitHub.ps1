@@ -182,33 +182,69 @@ if (-not $GitHubRepository) {
     exit 1
 }
 
-if (-not $GitHubEntity) {
-    Write-Host 'GitHubEntity is required. Valid values: branch, tag, environment, pull_request.' -ForegroundColor Red
-    exit 1
-}
+# ── Build credentials list ─────────────────────────────────────────────────────
 
-if ($GitHubEntity -ne 'pull_request' -and -not $GitHubEntityValue) {
-    Write-Host "GitHubEntityValue is required for entity type '$GitHubEntity'." -ForegroundColor Red
-    exit 1
-}
-
-# ── Build subject and credential name ─────────────────────────────────────────
-
-$subject = switch ($GitHubEntity) {
-    'branch'       { "repo:$GitHubOrganization/$GitHubRepository`:ref:refs/heads/$GitHubEntityValue" }
-    'tag'          { "repo:$GitHubOrganization/$GitHubRepository`:ref:refs/tags/$GitHubEntityValue" }
-    'environment'  { "repo:$GitHubOrganization/$GitHubRepository`:environment:$GitHubEntityValue" }
-    'pull_request' { "repo:$GitHubOrganization/$GitHubRepository`:pull_request" }
-}
-
-if (-not $CredentialName) {
-    $CredentialName = if ($GitHubEntity -eq 'pull_request') {
-        "$GitHubOrganization-$GitHubRepository-pull_request"
-    } else {
-        "$GitHubOrganization-$GitHubRepository-$GitHubEntity-$GitHubEntityValue"
+function ConvertTo-CredentialSpec {
+    param(
+        [string]$Org,
+        [string]$Repo,
+        [string]$Entity,
+        [string]$EntityValue = '',
+        [string]$CredName = ''
+    )
+    if (-not $Entity) { throw 'entity is required in each credentials entry.' }
+    if ($Entity -ne 'pull_request' -and -not $EntityValue) {
+        throw "entityValue is required for entity type '$Entity'."
     }
-    # Replace characters invalid for federated credential names
-    $CredentialName = $CredentialName -replace '[^a-zA-Z0-9-_.]', '-'
+    $subj = switch ($Entity) {
+        'branch'       { "repo:$Org/$Repo`:ref:refs/heads/$EntityValue" }
+        'tag'          { "repo:$Org/$Repo`:ref:refs/tags/$EntityValue" }
+        'environment'  { "repo:$Org/$Repo`:environment:$EntityValue" }
+        'pull_request' { "repo:$Org/$Repo`:pull_request" }
+        default        { throw "Invalid entity '$Entity'. Valid: branch, tag, environment, pull_request." }
+    }
+    if (-not $CredName) {
+        $CredName = if ($Entity -eq 'pull_request') {
+            "$Org-$Repo-pull_request"
+        } else {
+            "$Org-$Repo-$Entity-$EntityValue"
+        }
+        $CredName = $CredName -replace '[^a-zA-Z0-9-_.]', '-'
+    }
+    [PSCustomObject]@{ Entity = $Entity; EntityValue = $EntityValue; Subject = $subj; CredentialName = $CredName }
+}
+
+$credentialSpecs = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+if ($null -ne $config -and $config.PSObject.Properties['credentials'] -and $config.credentials.Count -gt 0) {
+    foreach ($cred in $config.credentials) {
+        $entVal = if ($cred.PSObject.Properties['entityValue']    -and $cred.entityValue)    { [string]$cred.entityValue }    else { '' }
+        $credNm = if ($cred.PSObject.Properties['credentialName'] -and $cred.credentialName) { [string]$cred.credentialName } else { '' }
+        $credentialSpecs.Add((ConvertTo-CredentialSpec `
+            -Org         $GitHubOrganization `
+            -Repo        $GitHubRepository `
+            -Entity      ([string]$cred.entity) `
+            -EntityValue $entVal `
+            -CredName    $credNm
+        ))
+    }
+} else {
+    # Single-credential mode (backward compat via parameters / single config fields)
+    if (-not $GitHubEntity) {
+        Write-Host 'GitHubEntity is required. Valid values: branch, tag, environment, pull_request.' -ForegroundColor Red
+        exit 1
+    }
+    if ($GitHubEntity -ne 'pull_request' -and -not $GitHubEntityValue) {
+        Write-Host "GitHubEntityValue is required for entity type '$GitHubEntity'." -ForegroundColor Red
+        exit 1
+    }
+    $credentialSpecs.Add((ConvertTo-CredentialSpec `
+        -Org         $GitHubOrganization `
+        -Repo        $GitHubRepository `
+        -Entity      $GitHubEntity `
+        -EntityValue $GitHubEntityValue `
+        -CredName    $CredentialName
+    ))
 }
 
 # ── Header ─────────────────────────────────────────────────────────────────────
@@ -219,9 +255,7 @@ if ($resolvedConfigPath) {
 }
 Write-Host "App Registration : $AppRegistrationName" -ForegroundColor Gray
 Write-Host "GitHub repo      : $GitHubOrganization/$GitHubRepository" -ForegroundColor Gray
-Write-Host "Entity           : $GitHubEntity$(if ($GitHubEntityValue) { "/$GitHubEntityValue" })" -ForegroundColor Gray
-Write-Host "Subject          : $subject" -ForegroundColor Gray
-Write-Host "Credential name  : $CredentialName" -ForegroundColor Gray
+Write-Host "Credentials      : $($credentialSpecs.Count) to process" -ForegroundColor Gray
 Write-Host "Graph connect    : $(if ($ConnectGraph) { 'Connect in script' } else { 'Use existing session' })" -ForegroundColor Gray
 Write-Host ''
 
@@ -279,66 +313,61 @@ try {
 
     Write-Host "  Found: $($app.DisplayName)  (AppId: $($app.AppId))" -ForegroundColor Green
 
-    # ── Check for existing credential ──────────────────────────────────────────
+    # ── Process each federated credential ─────────────────────────────────────
 
-    Write-Host 'Checking existing federated credentials...' -ForegroundColor Yellow
-
+    Write-Host 'Fetching existing federated credentials...' -ForegroundColor Yellow
     $existingCreds = @(Get-MgApplicationFederatedIdentityCredential -ApplicationId $app.Id -ErrorAction Stop)
-    $existing = $existingCreds | Where-Object { $_.Name -eq $CredentialName }
 
-    if ($existing) {
-        Write-Host "  Federated credential '$CredentialName' already exists." -ForegroundColor Yellow
-        Write-Host "  Existing subject : $($existing.Subject)" -ForegroundColor Yellow
-        Write-Host "  No changes made." -ForegroundColor Yellow
-    }
-    else {
-        # ── Create federated credential ────────────────────────────────────────
+    foreach ($spec in $credentialSpecs) {
+        Write-Host ''
+        Write-Host "Processing '$($spec.CredentialName)'..." -ForegroundColor Yellow
+        Write-Host "  Entity  : $($spec.Entity)$(if ($spec.EntityValue) { "/$($spec.EntityValue)" })" -ForegroundColor Gray
+        Write-Host "  Subject : $($spec.Subject)" -ForegroundColor Gray
 
-        Write-Host "Creating federated credential '$CredentialName'..." -ForegroundColor Yellow
+        $existing = $existingCreds | Where-Object { $_.Name -eq $spec.CredentialName }
 
-        $description = "GitHub Actions OIDC for $GitHubOrganization/$GitHubRepository $GitHubEntity$(if ($GitHubEntityValue) { "/$GitHubEntityValue" })"
-
-        $credBody = @{
-            Name        = $CredentialName
-            Issuer      = 'https://token.actions.githubusercontent.com'
-            Subject     = $subject
-            Audiences   = @('api://AzureADTokenExchange')
-            Description = $description
+        if ($existing) {
+            Write-Host '  Already exists – no changes made.' -ForegroundColor Yellow
         }
+        else {
+            $description = "GitHub Actions OIDC for $GitHubOrganization/$GitHubRepository $($spec.Entity)$(if ($spec.EntityValue) { "/$($spec.EntityValue)" })"
 
-        $null = New-MgApplicationFederatedIdentityCredential `
-            -ApplicationId  $app.Id `
-            -BodyParameter  $credBody `
-            -ErrorAction    Stop
+            $credBody = @{
+                Name        = $spec.CredentialName
+                Issuer      = 'https://token.actions.githubusercontent.com'
+                Subject     = $spec.Subject
+                Audiences   = @('api://AzureADTokenExchange')
+                Description = $description
+            }
 
-        Write-Host '  Federated credential created successfully.' -ForegroundColor Green
+            $null = New-MgApplicationFederatedIdentityCredential `
+                -ApplicationId  $app.Id `
+                -BodyParameter  $credBody `
+                -ErrorAction    Stop
+
+            Write-Host '  Created successfully.' -ForegroundColor Green
+        }
     }
 
     # ── Output result ──────────────────────────────────────────────────────────
 
-    $result = [PSCustomObject]@{
-        AppName        = $app.DisplayName
-        AppId          = $app.AppId
-        TenantId       = $context.TenantId
-        CredentialName = $CredentialName
-        Issuer         = 'https://token.actions.githubusercontent.com'
-        Subject        = $subject
-        GitHubRepo     = "$GitHubOrganization/$GitHubRepository"
-        Entity         = if ($GitHubEntityValue) { "$GitHubEntity/$GitHubEntityValue" } else { $GitHubEntity }
+    Write-Host ''
+    Write-Host 'Result:' -ForegroundColor Cyan
+    [PSCustomObject]@{
+        AppName    = $app.DisplayName
+        AppId      = $app.AppId
+        TenantId   = $context.TenantId
+        GitHubRepo = "$GitHubOrganization/$GitHubRepository"
+    } | Format-List
+    foreach ($spec in $credentialSpecs) {
+        Write-Host "  $($spec.CredentialName)  →  $($spec.Subject)" -ForegroundColor Green
     }
 
-    Write-Host "`nResult:" -ForegroundColor Cyan
-    $result | Format-List
-
-    $clipboardText = @(
-        "$($result.AppName)",
-        "App ID         : $($result.AppId)",
-        "Tenant ID      : $($result.TenantId)",
-        "Credential     : $($result.CredentialName)",
-        "Subject        : $($result.Subject)",
-        "GitHub repo    : $($result.GitHubRepo)",
-        "Entity         : $($result.Entity)"
-    ) -join [Environment]::NewLine
+    $clipboardText = (@(
+        $app.DisplayName,
+        "App ID    : $($app.AppId)",
+        "Tenant ID : $($context.TenantId)"
+    ) + ($credentialSpecs | ForEach-Object { "Subject   : $($_.Subject)" })) -join [Environment]::NewLine
 
     Set-Clipboard -Value $clipboardText
     Write-Host 'Copied summary to clipboard.' -ForegroundColor Green
