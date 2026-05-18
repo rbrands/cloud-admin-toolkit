@@ -1,0 +1,8 @@
+{
+  "webApp": {
+    "resourceGroupName": "<resource-group-name>",
+    "name": "<web-app-name>",
+    "slot": ""
+  },
+  "provider": ""
+}
