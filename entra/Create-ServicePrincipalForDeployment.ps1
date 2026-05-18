@@ -1,13 +1,17 @@
 <#
 .SYNOPSIS
-    Creates an Entra ID App Registration and assigns an Azure RBAC role,
+    Creates an Entra ID App Registration and assigns one or more Azure RBAC roles,
     ready for use with GitHub Actions OIDC (azure/login@v2).
 
 .DESCRIPTION
-    Creates an App Registration and matching Enterprise Application (service principal),
-    assigns an Azure RBAC role on a resource group,
+    Creates or reuses an App Registration and matching Enterprise Application (service principal),
+    assigns one or more Azure RBAC roles on a resource group,
     and exports the OIDC credentials (clientId, tenantId, subscriptionId) as a JSON file
     for use with GitHub Actions (azure/login@v2 with federated credentials / OIDC).
+
+    The script is idempotent: if an App Registration with the given display name or a matching
+    service principal already exists, it is reused instead of creating a duplicate.
+    Role assignments that already exist are silently skipped.
 
     No client secret is created. Use Add-FederatedCredentialForGitHub.ps1 to add
     the required federated credential after running this script.
@@ -63,9 +67,9 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$ResourceGroupName,
 
-    # Azure RBAC role to assign.
+    # Azure RBAC roles to assign. Multiple roles can be specified.
     [Parameter(Mandatory = $false)]
-    [string]$Role = 'Contributor',
+    [string[]]$Roles = @('Contributor'),
 
     # Output directory for the credentials JSON file.
     [Parameter(Mandatory = $false)]
@@ -127,9 +131,14 @@ if (-not $PSBoundParameters.ContainsKey('ResourceGroupName') -and $null -ne $con
     $ResourceGroupName = [string]$config.resourceGroupName
 }
 
-if (-not $PSBoundParameters.ContainsKey('Role') -and $null -ne $config -and
-    $config.PSObject.Properties['role']) {
-    $Role = [string]$config.role
+if (-not $PSBoundParameters.ContainsKey('Roles') -and $null -ne $config) {
+    if ($config.PSObject.Properties['roles'] -and $config.roles) {
+        $Roles = [string[]]$config.roles
+    }
+    elseif ($config.PSObject.Properties['role'] -and $config.role) {
+        # Backward compatibility: single string field
+        $Roles = @([string]$config.role)
+    }
 }
 
 if (-not $PSBoundParameters.ContainsKey('OutputPath') -and $null -ne $config -and $config.outputPath) {
@@ -209,7 +218,7 @@ if ($resolvedConfigPath) {
 Write-Host "App name         : $AppRegistrationName" -ForegroundColor Gray
 Write-Host "Subscription     : $SubscriptionId" -ForegroundColor Gray
 Write-Host "Resource group   : $ResourceGroupName" -ForegroundColor Gray
-Write-Host "Role             : $Role" -ForegroundColor Gray
+Write-Host "Roles            : $($Roles -join ', ')" -ForegroundColor Gray
 Write-Host "Output path      : $OutputPath" -ForegroundColor Gray
 Write-Host "Graph connect    : $(if ($ConnectGraph) { 'Connect in script' } else { 'Use existing session' })" -ForegroundColor Gray
 Write-Host "Azure connect    : $(if ($ConnectAzure) { 'Connect in script' } else { 'Use existing session' })" -ForegroundColor Gray
@@ -262,57 +271,84 @@ try {
         Connect-AzAccount @azConnectParams | Out-Null
     }
 
-    # ── Create App Registration ────────────────────────────────────────────────
+    # ── Create or reuse App Registration ──────────────────────────────────────
 
-    Write-Host "Creating App Registration '$AppRegistrationName'..." -ForegroundColor Yellow
-    $appParams = @{ DisplayName = $AppRegistrationName }
-    if ($ServiceNowTicket) {
-        $appParams.Notes = $ServiceNowTicket
+    $existingApps = @(Get-MgApplication -Filter "displayName eq '$AppRegistrationName'" -ErrorAction Stop)
+    if ($existingApps -and $existingApps.Count -gt 0) {
+        if ($existingApps.Count -gt 1) {
+            throw "Found $($existingApps.Count) App Registrations with display name '$AppRegistrationName'. Please resolve the ambiguity manually."
+        }
+        $app = $existingApps[0]
+        Write-Host "App Registration '$AppRegistrationName' already exists – reusing." -ForegroundColor Yellow
     }
-    $app = New-MgApplication @appParams
+    else {
+        Write-Host "Creating App Registration '$AppRegistrationName'..." -ForegroundColor Yellow
+        $appParams = @{ DisplayName = $AppRegistrationName }
+        if ($ServiceNowTicket) {
+            $appParams.Notes = $ServiceNowTicket
+        }
+        $app = New-MgApplication @appParams
+        Write-Host "  Created." -ForegroundColor Green
+    }
     Write-Host "  App ID     : $($app.AppId)" -ForegroundColor Green
     Write-Host "  Object ID  : $($app.Id)" -ForegroundColor Green
 
-    # ── Create Enterprise Application (Service Principal) ─────────────────────
+    # ── Create or reuse Enterprise Application (Service Principal) ─────────────
 
-    Write-Host 'Creating Enterprise Application (service principal)...' -ForegroundColor Yellow
-    $sp = New-MgServicePrincipal -AppId $app.AppId -Tags @('WindowsAzureActiveDirectoryIntegratedApp')
+    $existingSp = @(Get-MgServicePrincipal -Filter "appId eq '$($app.AppId)'" -ErrorAction Stop)
+    if ($existingSp -and $existingSp.Count -gt 0) {
+        $sp = $existingSp[0]
+        Write-Host "Service principal already exists – reusing." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host 'Creating Enterprise Application (service principal)...' -ForegroundColor Yellow
+        $sp = New-MgServicePrincipal -AppId $app.AppId -Tags @('WindowsAzureActiveDirectoryIntegratedApp')
+        Write-Host "  Created." -ForegroundColor Green
+    }
     Write-Host "  SP Object ID: $($sp.Id)" -ForegroundColor Green
 
-    # ── Assign Azure RBAC Role ─────────────────────────────────────────────────
-
-    Write-Host "Assigning role '$Role' on resource group '$ResourceGroupName'..." -ForegroundColor Yellow
+    # ── Assign Azure RBAC Roles ────────────────────────────────────────────────
 
     $scope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName"
-    $assigned = $false
     $maxRetries = 5
     $retryDelaySeconds = 10
 
-    for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
-        try {
-            New-AzRoleAssignment `
-                -ObjectId           $sp.Id `
-                -RoleDefinitionName $Role `
-                -Scope              $scope `
-                -ErrorAction        Stop | Out-Null
+    foreach ($roleName in $Roles) {
+        Write-Host "Assigning role '$roleName' on resource group '$ResourceGroupName'..." -ForegroundColor Yellow
 
-            $assigned = $true
-            Write-Host "  Role assigned successfully (attempt $attempt)." -ForegroundColor Green
-            break
-        }
-        catch {
-            if ($attempt -lt $maxRetries) {
-                Write-Host "  Attempt $attempt failed (SP propagation delay). Retrying in $retryDelaySeconds s..." -ForegroundColor Yellow
-                Start-Sleep -Seconds $retryDelaySeconds
-            }
-            else {
-                throw "Role assignment failed after $maxRetries attempts: $($_.Exception.Message)"
-            }
-        }
-    }
+        $assigned = $false
+        for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+            try {
+                New-AzRoleAssignment `
+                    -ObjectId           $sp.Id `
+                    -RoleDefinitionName $roleName `
+                    -Scope              $scope `
+                    -ErrorAction        Stop | Out-Null
 
-    if (-not $assigned) {
-        throw "Role assignment could not be completed."
+                $assigned = $true
+                Write-Host "  Role '$roleName' assigned successfully (attempt $attempt)." -ForegroundColor Green
+                break
+            }
+            catch {
+                # RoleAssignmentExists (HTTP 409) is not an error – treat as success.
+                if ($_.Exception.Message -match 'RoleAssignmentExists|Conflict|already exists') {
+                    $assigned = $true
+                    Write-Host "  Role '$roleName' was already assigned – skipping." -ForegroundColor Yellow
+                    break
+                }
+                if ($attempt -lt $maxRetries) {
+                    Write-Host "  Attempt $attempt failed (SP propagation delay). Retrying in $retryDelaySeconds s..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds $retryDelaySeconds
+                }
+                else {
+                    throw "Role assignment for '$roleName' failed after $maxRetries attempts: $($_.Exception.Message)"
+                }
+            }
+        }
+
+        if (-not $assigned) {
+            throw "Role assignment for '$roleName' could not be completed."
+        }
     }
 
     # ── Build GitHub Actions Credentials JSON ──────────────────────────────────
@@ -346,7 +382,7 @@ try {
         TenantId        = $context.TenantId
         SubscriptionId  = $SubscriptionId
         ResourceGroup   = $ResourceGroupName
-        Role            = $Role
+        Roles           = $Roles -join ', '
         CredentialsFile = $credFilePath
     }
 

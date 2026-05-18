@@ -11,7 +11,7 @@ governance, and cross-tenant scenarios.
 |---|---|
 | `Create-AppRegistrationWithCertificate.ps1` | Creates an Entra ID App Registration with a self-signed certificate credential and exports certificate files. |
 | `Create-AppRegistrationWithClientSecret.ps1` | Creates an Entra ID App Registration with a client secret. |
-| `Create-ServicePrincipalForDeployment.ps1` | Creates an App Registration with a client secret, assigns an Azure RBAC role on a resource group, and exports GitHub Actions credentials JSON. |
+| `Create-ServicePrincipalForDeployment.ps1` | Creates an App Registration and Enterprise Application (idempotent), assigns one or more Azure RBAC roles on a resource group, and exports GitHub Actions OIDC credentials JSON. |
 | `Add-FederatedCredentialForGitHub.ps1` | Adds an OIDC federated identity credential to an existing App Registration for passwordless GitHub Actions authentication. |
 | `Create-PemFromCerAndKey.ps1` | Creates a PEM file from `<CertificateBaseName>.key` and `<CertificateBaseName>.cer`. |
 | `Get-ClientSecretsAndCertificatesExpirationDate.ps1` | Lists expiration dates of client secrets and certificates for App Registrations. |
@@ -106,9 +106,13 @@ Security guidance:
 
 ## Create-ServicePrincipalForDeployment
 
-Creates an App Registration and Enterprise Application, generates a client secret,
-assigns an Azure RBAC role on a resource group, and exports a credentials JSON file
-ready for use as a GitHub Actions secret (`azure/login@v2`).
+Creates or reuses an App Registration and Enterprise Application, assigns one or more Azure RBAC roles
+on a resource group, and exports a credentials JSON file ready for use as GitHub Actions secrets
+(`azure/login@v2` with OIDC / federated credentials).
+
+The script is **idempotent**: if an App Registration with the given display name or a matching
+service principal already exists, it is reused instead of creating a duplicate.
+Role assignments that are already in place are silently skipped.
 
 Add the following to your `.gitignore`:
 ```
@@ -124,9 +128,8 @@ Credentials/*.github-credentials.json
 | `-AppRegistrationName` | Display name, e.g. `sp-myapp-github`. **Required.** |
 | `-ServiceNowTicket` | Optional notes field for ticket references. |
 | `-SubscriptionId` | Azure Subscription ID. Optional – falls back to active Az context. |
-| `-ResourceGroupName` | Resource group to assign the role on. **Required.** |
-| `-Role` | RBAC role to assign. Default: `Contributor`. |
-| `-SecretValidityMonths` | Secret validity in months. Default: `24`. |
+| `-ResourceGroupName` | Resource group to assign the roles on. **Required.** |
+| `-Roles` | One or more RBAC roles to assign. Default: `@('Contributor')`. Can be set in config as `roles` array. |
 | `-OutputPath` | Output directory for the credentials file. Default: `.\Credentials`. |
 | `-ConnectGraph` | Connect to Microsoft Graph from within this script. |
 | `-ConnectAzure` | Run `Connect-AzAccount` from within this script. |
@@ -142,8 +145,9 @@ Copy `Create-ServicePrincipalForDeployment.template.json`, rename to
 {
   "appRegistrationName": "sp-myapp-github",
   "resourceGroupName": "rg-myapp",
-  "role": "Contributor",
-  "secretValidityMonths": 24,
+  "roles": [
+    "Contributor"
+  ],
   "outputPath": ".\\Credentials",
   "auth": {
     "connectGraph": true,
@@ -152,6 +156,18 @@ Copy `Create-ServicePrincipalForDeployment.template.json`, rename to
   }
 }
 ```
+
+To assign multiple roles (e.g. to also allow managing role assignments):
+
+```json
+"roles": [
+  "Contributor",
+  "User Access Administrator"
+]
+```
+
+> **Backward compatibility:** the old single-string field `"role": "Contributor"` is still accepted
+> and is automatically treated as a single-element list.
 
 `subscriptionId` and `tenantId` are optional when already connected via `Connect-AzToolkit.ps1`.
 

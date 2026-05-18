@@ -3,7 +3,9 @@
   "serviceNowTicket": "RITM0000000",
   "subscriptionId": "__SUBSCRIPTION_ID__",
   "resourceGroupName": "rg-myapp",
-  "role": "Contributor",
+  "roles": [
+    "Contributor"
+  ],
   "secretValidityMonths": 24,
   "outputPath": ".\\Credentials",
   "tenantId": "__TENANT_ID__",
