@@ -7,6 +7,48 @@ RBAC, Policy, Arc and Update Manager.
 
 ## Scripts
 
+### `cosmos/Get-CosmosDbDataPlaneRoleDefinitions.ps1` – Read Cosmos DB SQL data-plane role definitions
+
+Reads SQL role definitions of a Cosmos DB account by using `Get-AzCosmosDBSqlRoleDefinition`.
+Returns a compact permission view (`DataActions`, `NotDataActions`) for each role definition.
+
+#### Parameters
+
+| Parameter | Description |
+|---|---|
+| `-SubscriptionId` | Optional. Sets the Azure subscription context before reading role definitions. |
+| `-AccountName` | Cosmos DB account name. **Required.** |
+| `-ResourceGroupName` | Resource group of the Cosmos DB account. **Required.** |
+| `-RoleDefinitionId` | Optional. Filters to a specific role definition (full resource ID or GUID). |
+
+#### Required permission (minimum)
+
+`Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions/read`
+
+#### Prerequisites
+
+```powershell
+.\shared\Install-Prerequisites.ps1
+```
+
+#### Examples
+
+```powershell
+# Recommended workflow: authenticate first, then run the script
+.\shared\Connect-AzToolkit.ps1 -ConfigName mytenant
+.\azure\cosmos\Get-CosmosDbDataPlaneRoleDefinitions.ps1 `
+  -AccountName 'cosmos-prod-001' `
+  -ResourceGroupName 'rg-data'
+
+# Filter by a specific role definition
+.\azure\cosmos\Get-CosmosDbDataPlaneRoleDefinitions.ps1 `
+  -AccountName 'cosmos-prod-001' `
+  -ResourceGroupName 'rg-data' `
+  -RoleDefinitionId '00000000-0000-0000-0000-000000000001'
+```
+
+---
+
 ### `storage/Read-BlobStorageContainer.ps1` – Download all blobs from a container
 
 Lists all blobs in an Azure Blob Storage container and downloads them to a local directory.

@@ -128,6 +128,12 @@ not for single-tenant or project-specific implementations.
 
 > Scripts will be listed here as they are added.
 
+### `azure/cosmos/`
+
+| File | Type | Description |
+|---|---|---|
+| `Get-CosmosDbDataPlaneRoleDefinitions.ps1` | Script | Reads Cosmos DB SQL data-plane role definitions with `Get-AzCosmosDBSqlRoleDefinition` and returns a compact permission view (`DataActions`, `NotDataActions`). |
+
 ### `azure/web-platform/`
 
 | File | Type | Description |
