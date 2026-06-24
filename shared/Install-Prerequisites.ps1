@@ -14,10 +14,74 @@
 #>
 
 [CmdletBinding()]
-param()
+param(
+    [Parameter()]
+    [switch]$InstallMacTools
+)
 
 Write-Host "=== Cloud Admin Toolkit - Module Bootstrap ===" -ForegroundColor Cyan
 Write-Host ""
+
+$isWindowsPlatform = $IsWindows -or ($PSVersionTable.Platform -eq 'Win32NT')
+$isMacOSPlatform = $IsMacOS -or ($PSVersionTable.Platform -eq 'Unix' -and $PSVersionTable.OS -match 'Darwin')
+
+if ($isMacOSPlatform -and $InstallMacTools) {
+    Write-Host "macOS detected. Installing system prerequisites via Homebrew..." -ForegroundColor Yellow
+
+    $brew = Get-Command brew -ErrorAction SilentlyContinue
+    if (-not $brew) {
+        Write-Host "  X Homebrew is not installed. Install it first: https://brew.sh" -ForegroundColor Red
+        throw "Homebrew is required for -InstallMacTools on macOS."
+    }
+
+    $brewPackages = @(
+        @{ Name = "git"; Description = "Git" }
+        @{ Name = "azure-cli"; Description = "Azure CLI" }
+        @{ Name = "powershell"; Description = "PowerShell 7" }
+    )
+
+    $brewCasks = @(
+        @{ Name = "visual-studio-code"; Description = "Visual Studio Code" }
+    )
+
+    foreach ($pkg in $brewPackages) {
+        Write-Host "Checking brew package: $($pkg.Name)..." -ForegroundColor Yellow
+        $installed = & brew list --formula --versions $pkg.Name 2>$null
+        if ($LASTEXITCODE -eq 0 -and $installed) {
+            Write-Host "  - Already installed" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  -> Installing $($pkg.Description)..." -ForegroundColor Yellow
+            & brew install $pkg.Name
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  - Installation successful" -ForegroundColor Green
+            }
+            else {
+                Write-Host "  X Installation failed" -ForegroundColor Red
+            }
+        }
+    }
+
+    foreach ($cask in $brewCasks) {
+        Write-Host "Checking brew cask: $($cask.Name)..." -ForegroundColor Yellow
+        $installed = & brew list --cask --versions $cask.Name 2>$null
+        if ($LASTEXITCODE -eq 0 -and $installed) {
+            Write-Host "  - Already installed" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  -> Installing $($cask.Description)..." -ForegroundColor Yellow
+            & brew install --cask $cask.Name
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  - Installation successful" -ForegroundColor Green
+            }
+            else {
+                Write-Host "  X Installation failed" -ForegroundColor Red
+            }
+        }
+    }
+
+    Write-Host ""
+}
 
 # Optional PowerShell version check
 if ($PSVersionTable.PSVersion.Major -lt 7) {
@@ -25,17 +89,25 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
     Write-Host ""
 }
 
-# Use custom module path to avoid Controlled Folder Access issues
-$customModuleRoot = Join-Path $env:LOCALAPPDATA "PSModules"
+# Use a custom module path to keep bootstrap idempotent and isolated.
+if ($isWindowsPlatform) {
+    $customModuleRoot = Join-Path $env:LOCALAPPDATA "PSModules"
+}
+else {
+    $customModuleRoot = Join-Path $HOME ".local/share/powershell/Modules"
+}
 
 if (-not (Test-Path $customModuleRoot)) {
     New-Item -ItemType Directory -Path $customModuleRoot | Out-Null
 }
 
-$psModulePathParts = $env:PSModulePath -split ';'
+$pathSeparator = [System.IO.Path]::PathSeparator
+$psModulePathParts = $env:PSModulePath -split [regex]::Escape($pathSeparator)
 if ($psModulePathParts -notcontains $customModuleRoot) {
-    $env:PSModulePath = "$customModuleRoot;$env:PSModulePath"
-    [Environment]::SetEnvironmentVariable("PSModulePath", $env:PSModulePath, "User")
+    $env:PSModulePath = "$customModuleRoot$pathSeparator$env:PSModulePath"
+    if ($isWindowsPlatform) {
+        [Environment]::SetEnvironmentVariable("PSModulePath", $env:PSModulePath, "User")
+    }
 }
 
 Write-Host "Using module path: $customModuleRoot" -ForegroundColor Gray
@@ -68,13 +140,22 @@ foreach ($module in $requiredModules) {
     else {
         Write-Host "  -> Installing $($module.Name)..." -ForegroundColor Yellow
         try {
-            Save-Module `
-                -Name $module.Name `
-                -Path $customModuleRoot `
-                -Force `
-                -AllowClobber `
-                -IncludeDependencies `
-                -MinimumVersion $module.MinVersion
+            $saveModuleParams = @{
+                Name                = $module.Name
+                Path                = $customModuleRoot
+                Force               = $true
+                MinimumVersion      = $module.MinVersion
+            }
+
+            if ((Get-Command Save-Module).Parameters.ContainsKey('IncludeDependencies')) {
+                $saveModuleParams.IncludeDependencies = $true
+            }
+
+            if ((Get-Command Save-Module).Parameters.ContainsKey('AllowClobber')) {
+                $saveModuleParams.AllowClobber = $true
+            }
+
+            Save-Module @saveModuleParams
 
             Write-Host "  - Installation successful" -ForegroundColor Green
         }
@@ -90,5 +171,8 @@ foreach ($module in $requiredModules) {
 Write-Host "Module bootstrap completed." -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
+if ($isMacOSPlatform -and -not $InstallMacTools) {
+    Write-Host "  - Optional: install macOS tools via brew with -InstallMacTools" -ForegroundColor White
+}
 Write-Host "  - Import required modules (Import-Module ...)" -ForegroundColor White
 Write-Host "  - Authenticate using Connect-AzAccount or Connect-MgGraph as needed" -ForegroundColor White

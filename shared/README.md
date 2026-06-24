@@ -183,6 +183,12 @@ Run once on a new machine or after a fresh PowerShell installation.
 .\shared\Install-Prerequisites.ps1
 ```
 
+On macOS, you can additionally install system prerequisites (Git, Azure CLI, PowerShell 7, VS Code) via Homebrew:
+
+```powershell
+./shared/Install-Prerequisites.ps1 -InstallMacTools
+```
+
 ---
 
 ## Templates

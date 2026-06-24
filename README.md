@@ -29,7 +29,7 @@ Scripts are designed to be:
 
 ## Getting Started
 
-### Option A – winget DSC (recommended)
+### Option A – winget DSC (Windows)
 
 Installs all software prerequisites (PowerShell 7, Git, Azure CLI, VS Code)  
 using a single winget configuration file:
@@ -44,7 +44,15 @@ Then install the required PowerShell modules:
 ./shared/Install-Prerequisites.ps1
 ```
 
-### Option B – manual
+### Option B – macOS (Homebrew)
+
+Install software prerequisites with Homebrew and then required modules:
+
+```powershell
+./shared/Install-Prerequisites.ps1 -InstallMacTools
+```
+
+### Option C – manual
 
 Requirements:
 
